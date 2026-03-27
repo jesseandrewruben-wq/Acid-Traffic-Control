@@ -192,7 +192,11 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .ftp[data-v="peaking"].sel{border-color:var(--violet);color:var(--violet);background:var(--violet-d);}
 .ftp[data-v="peaking"]:hover{border-color:var(--violet);color:var(--violet);}
 
-/* Radar */
+@keyframes chaosIdle{
+  0%,100%{box-shadow:0 0 6px rgba(221,85,85,0.25),0 0 2px rgba(221,85,85,0.1);border-color:#5a2020;}
+  50%{box-shadow:0 0 18px rgba(221,85,85,0.75),0 0 8px rgba(221,85,85,0.45),inset 0 0 8px rgba(221,85,85,0.15);border-color:var(--red);}
+}
+#chaosBtn{animation:chaosIdle 1.6s ease-in-out infinite;}
 .rw{border:1px solid var(--g3);background:var(--panel);flex:1;display:flex;flex-direction:column;min-height:0;}
 .rw-hud{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--g4);flex-shrink:0;}
 .rw-ht{font-size:9px;color:var(--g2);letter-spacing:3px;}
@@ -353,7 +357,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
             <span class="rla" style="margin-left:4px">SCALE</span>
             <select class="rse" id="rSc"><option value="major">Major</option><option value="minor" selected>Minor</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="locrian">Locrian</option><option value="harm_minor">Harm Min</option><option value="mel_minor">Mel Min</option><option value="penta_maj">Penta Maj</option><option value="penta_min">Penta Min</option><option value="blues">Blues</option><option value="chromatic">Chromatic</option></select>
             <span class="rla" style="margin-left:4px">OSC</span>
-            <div class="oo"><div class="oop sel" data-v="saw" onclick="sRO(this)">SAW</div><div class="oop" data-v="sqr" onclick="sRO(this)">SQR</div><div class="oop" data-v="tri" onclick="sRO(this)">TRI</div><div class="oop" data-v="sin" onclick="sRO(this)">SIN</div><div class="oop" data-v="random" onclick="sRO(this)">RND</div></div>
+            <div class="oo"><div class="oop" data-v="saw" onclick="sRO(this)">SAW</div><div class="oop" data-v="sqr" onclick="sRO(this)">SQR</div><div class="oop" data-v="tri" onclick="sRO(this)">TRI</div><div class="oop" data-v="sin" onclick="sRO(this)">SIN</div><div class="oop sel" data-v="random" onclick="sRO(this)">RND</div></div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">
             <span class="rla">TRAFFIC</span>
@@ -569,7 +573,7 @@ let st=[];for(let i=0;i<NS;i++)st.push({n:48,g:true,gl:false,ac:false,w:0});
 let kick=new Array(NS).fill(false);
 let hh=new Array(NS).fill(false);
 let clap=new Array(NS).fill(false);
-let bpm=95,playing=false,cs=-1,iid=null,rDe=75,rSp=20,rOs='saw',swing=0.6;
+let bpm=95,playing=false,cs=-1,iid=null,rDe=75,rSp=20,rOs='random',swing=0.6;
 let fCut=50,fRes=30,fEnv=40; // filter cutoff%, resonance%, envelope amount%
 let fMode='juno'; // 'juno' or 'acid'
 let fType='lowpass'; // kept for PIP compat, always lowpass now
@@ -799,15 +803,16 @@ function setVol(){
 }
 
 // Drum synthesis — routed to dedicated buses, bypass synth filter
-function playKick(){
+function playKick(accent){
   if(!ax||!kickGain)return;const now=ax.currentTime;
+  const av=accent?1.7:1.2; // accent boosts body level
   // Main body — sine sweep from 160Hz down to 35Hz
   const osc=ax.createOscillator();const g=ax.createGain();
   osc.type='sine';
-  osc.frequency.setValueAtTime(160,now);
+  osc.frequency.setValueAtTime(accent?200:160,now);
   osc.frequency.exponentialRampToValueAtTime(35,now+0.15);
-  g.gain.setValueAtTime(1.2,now);
-  g.gain.setTargetAtTime(0.8,now+0.02,0.05);
+  g.gain.setValueAtTime(av,now);
+  g.gain.setTargetAtTime(av*0.65,now+0.02,0.05);
   g.gain.exponentialRampToValueAtTime(0.001,now+0.4);
   osc.connect(g);g.connect(kickGain);osc.start(now);osc.stop(now+0.45);
   // Sub layer — lower sine for weight
@@ -831,23 +836,24 @@ function playKick(){
   const nHp=ax.createBiquadFilter();nHp.type='highpass';nHp.frequency.value=2000;
   nSrc.connect(nHp);nHp.connect(nG);nG.connect(kickGain);nSrc.start(now);
 }
-function playHH(){
+function playHH(accent){
   if(!ax||!hhGain)return;const now=ax.currentTime;
-  const bufSz=Math.floor(ax.sampleRate*0.06);
+  const bufSz=Math.floor(ax.sampleRate*(accent?0.1:0.06));
   const buf=ax.createBuffer(1,bufSz,ax.sampleRate);
   const d=buf.getChannelData(0);for(let i=0;i<bufSz;i++)d[i]=(Math.random()*2-1);
   const src=ax.createBufferSource();src.buffer=buf;
   const hp=ax.createBiquadFilter();hp.type='highpass';hp.frequency.value=7000;
-  const bp=ax.createBiquadFilter();bp.type='peaking';bp.frequency.value=10000;bp.Q.value=2;bp.gain.value=6;
+  const bp=ax.createBiquadFilter();bp.type='peaking';bp.frequency.value=10000;bp.Q.value=2;bp.gain.value=accent?10:6;
   const g=ax.createGain();
-  g.gain.setValueAtTime(0.6,now);
-  g.gain.exponentialRampToValueAtTime(0.001,now+0.08);
+  g.gain.setValueAtTime(accent?1.0:0.6,now);
+  g.gain.exponentialRampToValueAtTime(0.001,now+(accent?0.14:0.08));
   src.connect(hp);hp.connect(bp);bp.connect(g);g.connect(hhGain);src.start(now);
 }
-function playClap(){
+function playClap(accent){
   if(!ax||!clapGain)return;const now=ax.currentTime;
-  // Multi-layered noise burst for clap — 3 staggered hits
-  for(let j=0;j<3;j++){
+  // Multi-layered noise burst for clap — 3 staggered hits (4 if accented)
+  const layers=accent?4:3;
+  for(let j=0;j<layers;j++){
     const offset=j*0.012;
     const bufSz=Math.floor(ax.sampleRate*0.04);
     const buf=ax.createBuffer(1,bufSz,ax.sampleRate);
@@ -856,8 +862,8 @@ function playClap(){
     const bp=ax.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1200;bp.Q.value=1.5;
     const g=ax.createGain();
     g.gain.setValueAtTime(0,now+offset);
-    g.gain.linearRampToValueAtTime(0.7,now+offset+0.003);
-    g.gain.exponentialRampToValueAtTime(0.001,now+offset+0.12);
+    g.gain.linearRampToValueAtTime(accent?1.0:0.7,now+offset+0.003);
+    g.gain.exponentialRampToValueAtTime(0.001,now+offset+(accent?0.18:0.12));
     src.connect(bp);bp.connect(g);g.connect(clapGain);src.start(now+offset);
   }
   // Reverb tail — longer noise
@@ -921,10 +927,11 @@ function adv(){
     }
   }
   pS(cs);
-  // Trigger drums
-  if(kick[cs])playKick();
-  if(hh[cs])playHH();
-  if(clap[cs])playClap();
+  // Trigger drums — accents from synth row drive drum dynamics
+  const drumAcc=st[cs].ac;
+  if(kick[cs])playKick(drumAcc);
+  if(hh[cs])playHH(drumAcc);
+  if(clap[cs])playClap(drumAcc);
   hlS();uHud();
 }
 // ═══ MPC-ACCURATE SWING ═══
@@ -1160,6 +1167,7 @@ function chaosStart(){
   if(!playing){chaosActivate();return;}
   // Otherwise queue for next step 1
   chaosPending=true;
+  btn.style.animation='none';
   btn.style.boxShadow='0 0 8px rgba(221,85,85,0.4)';
   btn.style.borderColor='#883333';
   status.textContent='WAIT';
@@ -1179,6 +1187,7 @@ function chaosActivate(){
 
   const btn=document.getElementById('chaosBtn');
   const status=document.getElementById('chaosStatus');
+  btn.style.animation='none';
   btn.style.boxShadow='0 0 18px rgba(221,85,85,0.85)';
   btn.style.borderColor='var(--red)';
   status.textContent='LIVE';
@@ -1192,8 +1201,9 @@ function chaosActivate(){
     chaosActive=false;
     chaosTimer=null;
     chaosRefreshDrums();
-    btn.style.boxShadow='0 0 6px rgba(221,85,85,0.15)';
-    btn.style.borderColor='var(--red-d)';
+    btn.style.animation='';
+    btn.style.boxShadow='';
+    btn.style.borderColor='';
     status.textContent='FILL';
     status.style.color='var(--red-d)';
     chaosPipPhase='out';
