@@ -45,6 +45,129 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .left{flex:0 0 58%;display:flex;flex-direction:column;gap:4px;min-height:0;min-width:0;}
 .right{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;}
 
+/* ══════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   ══════════════════════════════════════════ */
+
+/* ── Tablet landscape / small desktop (< 1100px wide) ── */
+@media (max-width:1100px) and (orientation:landscape){
+  .hdr-t{font-size:11px;letter-spacing:2px;}
+  .nc{height:46px;}
+  .nn{font-size:8px;}
+}
+
+/* ── Tablet portrait (601px – 900px, portrait) ── */
+@media (max-width:900px) and (orientation:portrait){
+  body{overflow-y:auto;height:auto;min-height:100vh;}
+  #shell{
+    position:relative;top:auto;bottom:auto;left:auto;right:auto;
+    width:100%;height:auto;
+    max-width:100%;max-height:none;
+    padding:4px;gap:4px;
+  }
+  .main{flex-direction:column;min-height:0;height:auto;}
+  .left{flex:none;width:100%;}
+  .right{flex:none;width:100%;height:50vw;min-height:260px;}
+  /* Scope should be first visually on portrait */
+  .main{flex-direction:column-reverse;}
+  .rw{height:100%;}
+  .rw-cv{height:100%;}
+  /* Shrink note cells */
+  .nc{height:44px;}
+  .nn{font-size:8px;}
+  /* Tighter transport */
+  .trn{gap:4px;padding:3px 6px;}
+  .tb{font-size:10px;padding:3px 9px;}
+  /* Control modules wrap */
+  #ctrlModules{flex-wrap:wrap;}
+  /* Header */
+  .hdr-t{font-size:12px;letter-spacing:2px;}
+  .hdr-r{font-size:8px;}
+}
+
+/* ── Mobile landscape (short, wide screens < 500px tall) ── */
+@media (max-height:500px) and (orientation:landscape){
+  .nc{height:38px;}
+  .nn{font-size:7px;}
+  .tc{height:14px;font-size:7px;}
+  .trn{padding:2px 6px;gap:4px;}
+  .tb{font-size:9px;padding:2px 8px;}
+  .hdr-t{font-size:10px;letter-spacing:2px;}
+  .hdr{padding:2px 8px;}
+  .gw{padding:3px;}
+  .rl{font-size:7px;}
+  /* Smaller radar legend */
+  .rw-leg{padding:2px 4px;gap:4px;}
+  .li{font-size:7px;}
+}
+
+/* ── Mobile portrait (≤ 600px wide) ── */
+@media (max-width:600px){
+  body{overflow-y:auto;height:auto;min-height:100vh;}
+  #shell{
+    position:relative;top:auto;bottom:auto;left:auto;right:auto;
+    width:100%;height:auto;
+    max-width:100%;max-height:none;
+    padding:3px;gap:3px;
+  }
+  .main{flex-direction:column-reverse;min-height:0;height:auto;}
+  .left{flex:none;width:100%;}
+  .right{flex:none;width:100%;height:56vw;min-height:200px;}
+  .rw{height:100%;}
+  .rw-cv{height:100%;}
+
+  /* Header compact */
+  .hdr{padding:3px 8px;}
+  .hdr-t{font-size:10px;letter-spacing:2px;}
+  .hdr-r{display:none;}/* hide status on small screens */
+
+  /* Transport: wrap tighter */
+  .trn{flex-wrap:wrap;gap:3px;padding:3px 6px;}
+  .tb{font-size:9px;padding:2px 8px;letter-spacing:1px;}
+  .bpm-a label{font-size:9px;}
+  .bpm-i{width:36px;font-size:11px;}
+  /* Volume sliders — hide labels, shrink sliders */
+  .vol-g label{display:none;}
+  .vol-r{width:36px;}
+
+  /* Grid */
+  .gw{padding:4px 3px;overflow-x:auto;}
+  .sg{gap:1px;}
+  /* Taller note cells to keep them tappable */
+  .nc{height:36px;}
+  .nn{font-size:7px;}
+  .tc{height:16px;font-size:7px;letter-spacing:0;}
+  .rl{font-size:7px;letter-spacing:1px;}
+
+  /* Warning bar — wrap small */
+  .wi-bar{padding:2px 4px;gap:2px;}
+  .wi{padding:1px 4px;font-size:7px;}
+  .wi-icon{font-size:8px;}
+  .wi-label{display:none;}/* save space: just show icon + value */
+
+  /* Legend compact */
+  .rw-leg{padding:2px 4px;gap:3px;flex-wrap:wrap;}
+  .li{font-size:7px;}
+  .rw-hud{padding:3px 6px;}
+  .rw-ht{font-size:8px;}
+  .rw-hi{font-size:7px;}
+
+  /* Options panel */
+  .opts-panel{padding:6px 8px;}
+
+  /* Control modules — allow wrapping */
+  #ctrlModules{flex-wrap:wrap;gap:3px;}
+  /* Sliders wider since they have more room when wrapped */
+  .vol-r{width:44px;}
+
+  /* Randomizer selects */
+  .rse{font-size:9px;padding:1px 3px;}
+  .rla{font-size:8px;min-width:40px;}
+
+  /* Step number text */
+  .sn{font-size:7px;}
+}
+
 /* Transport */
 .trn{display:flex;align-items:center;gap:6px;border:1px solid var(--g3);padding:4px 8px;background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
 .tb{font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 12px;border:1px solid;cursor:pointer;background:transparent;letter-spacing:2px;}
@@ -366,7 +489,7 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
             <div class="sw"><div class="st_ tr_" id="sT"><div class="sf fr" id="sF" style="width:20%"></div></div><span class="sv vr" id="sV">20%</span></div>
           </div>
           <!-- ── CONTROL MODULES — single row ── -->
-          <div style="display:flex;gap:4px;align-items:stretch;margin-top:5px;">
+          <div id="ctrlModules" style="display:flex;gap:4px;align-items:stretch;margin-top:5px;flex-wrap:wrap;">
 
               <!-- GENERATE / CLEAR + FORMATION -->
               <div style="display:flex;flex-direction:column;gap:4px;justify-content:center;">
@@ -2575,6 +2698,45 @@ function drawWavePIP(cx,cy,rad,w,h){
 
   rc.restore();
 }
+
+// ── Responsive layout manager ──────────────────────────────
+// Switches between fixed-viewport (desktop) and scrollable (mobile/tablet portrait)
+// so the canvas and shell layout always fill available space correctly.
+(function initResponsive(){
+  const shell=document.getElementById('shell');
+  function applyLayout(){
+    const isPortrait=window.innerHeight>window.innerWidth;
+    const isNarrow=window.innerWidth<=900;
+    const isMobile=isPortrait&&isNarrow;
+    if(isMobile){
+      // Portrait mobile/tablet: scrollable, full-width stacked layout
+      document.body.style.overflow='auto';
+      document.body.style.height='auto';
+      shell.style.position='relative';
+      shell.style.top='';shell.style.bottom='';
+      shell.style.left='';shell.style.right='';
+      shell.style.width='100%';
+      shell.style.height='auto';
+      shell.style.maxWidth='';
+      shell.style.maxHeight='';
+    } else {
+      // Landscape / wide: fixed viewport, aspect-ratio constrained
+      document.body.style.overflow='hidden';
+      document.body.style.height='100vh';
+      shell.style.position='absolute';
+      shell.style.top='0';shell.style.bottom='0';
+      shell.style.left='0';shell.style.right='0';
+      shell.style.width='100vw';
+      shell.style.height='100vh';
+      // Restore CSS variable-driven max constraints
+      shell.style.maxWidth='var(--ar-mw,177.78vh)';
+      shell.style.maxHeight='var(--ar-mh,56.25vw)';
+    }
+  }
+  applyLayout();
+  window.addEventListener('resize',applyLayout);
+  window.addEventListener('orientationchange',()=>setTimeout(applyLayout,120));
+})();
 </script>
 </body>
 </html>
