@@ -1,0 +1,2570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACID TRAFFIC CONTROL</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+:root {
+  --g1:#66dd77;--g2:#44aa55;--g3:#256633;--g4:#14391c;
+  --bg:#060e08;--panel:#0a140b;
+  --red:#dd5555;--red-d:#5a2020;
+  --blue:#66bbdd;--blue-d:#1f3d50;
+  --amber:#ddbb55;--amber-d:#5a4515;
+  --violet:#bb77dd;--violet-d:#442255;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--g1);font-family:'Share Tech Mono',monospace;overflow:hidden;height:100vh;width:100vw;}
+body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 6px);pointer-events:none;z-index:1000;}
+
+/* Aspect ratio container */
+#shell{width:100vw;height:100vh;max-width:var(--ar-mw,177.78vh);max-height:var(--ar-mh,56.25vw);margin:auto;position:absolute;top:0;bottom:0;left:0;right:0;display:flex;flex-direction:column;padding:6px;gap:4px;}
+
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--g3);padding:4px 10px;background:var(--panel);flex-shrink:0;}
+.hdr-t{font-size:14px;letter-spacing:4px;color:var(--g2);}
+.hdr-t b{color:var(--g1);font-weight:normal;}
+.hdr-r{font-size:9px;color:var(--g2);letter-spacing:1px;}
+.hdr-r .on{color:var(--g1);}
+
+/* Options panel */
+.opts-panel{display:none;border:1px solid var(--g3);background:var(--panel);padding:8px 12px;flex-shrink:0;}
+.opts-panel.open{display:block;}
+.opts-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.opts-row:last-child{margin-bottom:0;}
+.opts-lbl{font-size:9px;color:var(--g2);letter-spacing:2px;min-width:48px;}
+.opts-themes{display:flex;gap:3px;flex-wrap:wrap;}
+.opts-th{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--g3);border:1px solid var(--g4);padding:2px 8px;cursor:pointer;letter-spacing:1px;font-family:'Share Tech Mono',monospace;transition:all 0.12s;}
+.opts-th:hover{border-color:var(--g2);color:var(--g2);}
+.opts-th.sel{border-color:var(--g1);color:var(--g1);background:var(--g4);}
+.opts-swatch{width:8px;height:8px;border-radius:1px;}
+
+/* Main split */
+.main{flex:1;display:flex;gap:4px;min-height:0;}
+.left{flex:0 0 58%;display:flex;flex-direction:column;gap:4px;min-height:0;min-width:0;}
+.right{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;}
+
+/* Transport */
+.trn{display:flex;align-items:center;gap:6px;border:1px solid var(--g3);padding:4px 8px;background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.tb{font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 12px;border:1px solid;cursor:pointer;background:transparent;letter-spacing:2px;}
+.tb:hover{filter:brightness(1.3);}
+.tb-p{color:var(--g1);border-color:var(--g2);}
+.tb-p.act{background:var(--g4);}
+.tb-s{color:var(--red);border-color:var(--red-d);}
+.bpm-a{display:flex;align-items:center;gap:4px;margin-left:6px;}
+.bpm-a label{font-size:10px;color:var(--amber);letter-spacing:1px;}
+.bpm-i{width:42px;background:var(--bg);border:1px solid var(--amber-d);color:var(--amber);font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center;padding:2px;}
+.bpm-i:focus{outline:1px solid var(--amber);}
+
+/* Volume sliders */
+.vol-g{display:flex;align-items:center;gap:3px;}
+.vol-g label{font-size:8px;color:var(--g2);letter-spacing:1px;min-width:18px;}
+.vol-r{-webkit-appearance:none;appearance:none;width:48px;height:6px;background:var(--g4);border-radius:0;outline:none;cursor:pointer;}
+.vol-r::-webkit-slider-thumb{-webkit-appearance:none;width:4px;height:12px;background:var(--g2);border:none;cursor:pointer;}
+.vol-r::-moz-range-thumb{width:4px;height:12px;background:var(--g2);border:none;cursor:pointer;border-radius:0;}
+.vr-amb::-webkit-slider-thumb{background:var(--amber);}
+.vr-amb::-moz-range-thumb{background:var(--amber);}
+.vr-red::-webkit-slider-thumb{background:var(--red);}
+.vr-red::-moz-range-thumb{background:var(--red);}
+.vr-grn::-webkit-slider-thumb{background:var(--g1);}
+.vr-grn::-moz-range-thumb{background:var(--g1);}
+
+/* Grid */
+.gw{border:1px solid var(--g3);background:var(--panel);padding:6px;overflow-x:auto;overflow-y:auto;flex:1;min-height:0;}
+.rl{font-size:8px;color:var(--g2);letter-spacing:2px;padding:1px 2px;text-transform:uppercase;}
+.rl.ca{color:var(--amber);}
+.rl.cb{color:var(--blue-d);}
+.rl.cr{color:var(--red-d);}
+.sg{display:grid;grid-template-columns:repeat(16,1fr);gap:2px;}
+.sn{text-align:center;font-size:8px;color:var(--g2);padding:1px 0;border-bottom:1px solid var(--g4);user-select:none;}
+.sn.beat{color:var(--g1);}
+.sn.cur{color:var(--g1);background:var(--g4);}
+.nc{position:relative;height:60px;background:var(--bg);border:1px solid var(--g4);cursor:ns-resize;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;user-select:none;}
+.nc.cur{border-color:var(--g2);}
+.nc:hover{border-color:var(--g3);}
+.nb{position:absolute;bottom:0;left:0;right:0;background:var(--g3);opacity:0.8;transition:height 0.08s;}
+.nc.cur .nb{background:var(--g2);opacity:1;}
+.nn{position:relative;z-index:2;font-size:9px;color:var(--g1);padding:2px 0;pointer-events:none;}
+.tc{height:18px;border:1px solid;display:flex;align-items:center;justify-content:center;font-size:8px;cursor:pointer;user-select:none;transition:all 0.12s;letter-spacing:1px;}
+.tc:hover{filter:brightness(1.2);}
+.tc-g{border-color:var(--g4);color:var(--g4);}
+.tc-g.on{background:var(--g4);border-color:var(--g2);color:var(--g1);}
+.tc-w{border-color:var(--amber-d);color:var(--amber);}
+.tc-w:hover{border-color:var(--amber);}
+.tc-l{border-color:var(--blue-d);color:var(--blue-d);}
+.tc-l.on{background:var(--blue-d);color:var(--blue);border-color:var(--blue);}
+.tc-a{border-color:var(--red-d);color:var(--red-d);}
+.tc-a.on{background:var(--red-d);color:var(--red);border-color:var(--red);}
+
+/* Mutation blink — sharp on/off toggle for 1 second */
+@keyframes mutBlink{
+  0%{background:var(--amber);color:var(--bg);}
+  10%{background:transparent;color:inherit;}
+  20%{background:var(--amber);color:var(--bg);}
+  30%{background:transparent;color:inherit;}
+  40%{background:var(--amber);color:var(--bg);}
+  50%{background:transparent;color:inherit;}
+  60%{background:var(--amber);color:var(--bg);}
+  70%{background:transparent;color:inherit;}
+  80%{background:var(--amber);color:var(--bg);}
+  90%,100%{background:transparent;color:inherit;}
+}
+.mut{animation:mutBlink 0.8s steps(1,end) forwards;}
+@keyframes mutBlinkNote{
+  0%{border-color:var(--amber);box-shadow:inset 0 0 6px var(--amber);}
+  10%{border-color:var(--g4);box-shadow:none;}
+  20%{border-color:var(--amber);box-shadow:inset 0 0 6px var(--amber);}
+  30%{border-color:var(--g4);box-shadow:none;}
+  40%{border-color:var(--amber);box-shadow:inset 0 0 6px var(--amber);}
+  50%{border-color:var(--g4);box-shadow:none;}
+  60%{border-color:var(--amber);box-shadow:inset 0 0 6px var(--amber);}
+  70%,100%{border-color:var(--g4);box-shadow:none;}
+}
+.mut-note{animation:mutBlinkNote 0.8s steps(1,end) forwards;}
+
+/* Drum rows */
+.tc-kick{border-color:var(--red-d);color:var(--red-d);font-size:9px;}
+.tc-kick.on{background:var(--red-d);border-color:var(--red);color:var(--red);}
+.tc-hh{border-color:var(--g3);color:var(--g3);font-size:9px;}
+.tc-hh.on{background:var(--g4);border-color:var(--g1);color:var(--g1);}
+.tc-clap{border-color:var(--amber-d);color:var(--amber-d);font-size:9px;}
+.tc-clap.on{background:var(--amber-d);border-color:var(--amber);color:var(--amber);}
+
+/* Randomizer (inline) */
+.rla{font-size:9px;color:var(--g1);min-width:48px;letter-spacing:2px;}
+.rse{background:var(--bg);border:1px solid var(--g3);color:var(--g1);font-family:'Share Tech Mono',monospace;font-size:10px;padding:2px 4px;cursor:pointer;}
+.rse:focus{outline:1px solid var(--g1);}
+.sw{display:flex;align-items:center;gap:6px;flex:1;min-width:120px;}
+.st_{flex:1;height:8px;background:var(--bg);position:relative;cursor:pointer;overflow:hidden;border:1px solid var(--g4);}
+.st_.tb_{border-color:var(--blue-d);}
+.st_.tr_{border-color:var(--red-d);}
+.st_.tf_{border-color:var(--amber-d);}
+.st_.tg_{border-color:var(--g3);}
+.sf.fg{background:var(--g3);}
+.sf.fg::after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--g1);}
+.sv.vg{color:var(--g1);}
+.sf{height:100%;transition:width 0.1s;position:relative;}
+.sf.fb{background:var(--blue-d);}
+.sf.fb::after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--blue);}
+.sf.fr{background:linear-gradient(90deg,var(--g4),var(--amber-d),var(--red-d));}
+.sf.fr::after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--red);}
+.sf.ff{background:linear-gradient(90deg,var(--g4),var(--amber-d));}
+.sf.ff::after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--amber);}
+.st_.tv_{border-color:var(--violet-d);}
+.sf.fv{background:linear-gradient(90deg,var(--g4),var(--violet-d));}
+.sf.fv::after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--violet);}
+.sv.vv{color:var(--violet-d);}
+.sv.vb{color:var(--blue);}
+.sv.vr{color:var(--red);}
+.sv.vf{color:var(--amber);}
+.spa{display:flex;align-items:center;gap:3px;}
+.spd{font-size:10px;letter-spacing:2px;}
+.rb{font-family:'Share Tech Mono',monospace;font-size:9px;padding:3px 12px;border:1px solid;background:transparent;cursor:pointer;letter-spacing:2px;}
+.rb:hover{filter:brightness(1.3);}
+.rb-g{color:var(--amber);border-color:var(--amber-d);}
+.rb-g:hover{background:var(--amber-d);}
+.rb-b{color:var(--blue);border-color:var(--blue-d);}
+.rb-b:hover{background:var(--blue-d);}
+@keyframes genPulse{0%,100%{box-shadow:0 0 3px var(--blue-d);border-color:var(--blue-d);}50%{box-shadow:0 0 12px var(--blue),0 0 4px var(--blue);border-color:var(--blue);}}
+.rb-g.pulse,.rb.pulse,.rb-b.pulse{animation:genPulse 1.8s ease-in-out infinite;}
+.rb-c{color:var(--red);border-color:var(--red-d);}
+.rb-c:hover{background:var(--red-d);}
+.oo{display:flex;gap:2px;}
+.oop{font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 7px;border:1px solid var(--amber-d);color:var(--amber-d);background:transparent;cursor:pointer;letter-spacing:1px;}
+.oop:hover{border-color:var(--amber);color:var(--amber);}
+.oop.sel{border-color:var(--amber);color:var(--amber);background:var(--amber-d);}
+/* Filter type buttons — color per type */
+.ftp{transition:all 0.12s;}
+.ftp[data-v="lowpass"]{border-color:var(--amber-d);color:var(--amber-d);}
+.ftp[data-v="lowpass"].sel{border-color:var(--amber);color:var(--amber);background:var(--amber-d);}
+.ftp[data-v="lowpass"]:hover{border-color:var(--amber);color:var(--amber);}
+.ftp[data-v="highpass"]{border-color:var(--red-d);color:var(--red-d);}
+.ftp[data-v="highpass"].sel{border-color:var(--red);color:var(--red);background:var(--red-d);}
+.ftp[data-v="highpass"]:hover{border-color:var(--red);color:var(--red);}
+.ftp[data-v="bandpass"]{border-color:var(--blue-d);color:var(--blue-d);}
+.ftp[data-v="bandpass"].sel{border-color:var(--blue);color:var(--blue);background:var(--blue-d);}
+.ftp[data-v="bandpass"]:hover{border-color:var(--blue);color:var(--blue);}
+.ftp[data-v="notch"]{border-color:var(--g3);color:var(--g3);}
+.ftp[data-v="notch"].sel{border-color:var(--g1);color:var(--g1);background:var(--g4);}
+.ftp[data-v="notch"]:hover{border-color:var(--g1);color:var(--g1);}
+.ftp[data-v="peaking"]{border-color:var(--violet-d);color:var(--violet-d);}
+.ftp[data-v="peaking"].sel{border-color:var(--violet);color:var(--violet);background:var(--violet-d);}
+.ftp[data-v="peaking"]:hover{border-color:var(--violet);color:var(--violet);}
+
+/* Radar */
+.rw{border:1px solid var(--g3);background:var(--panel);flex:1;display:flex;flex-direction:column;min-height:0;}
+.rw-hud{display:flex;justify-content:space-between;align-items:center;padding:4px 8px;border-bottom:1px solid var(--g4);flex-shrink:0;}
+.rw-ht{font-size:9px;color:var(--g2);letter-spacing:3px;}
+.rw-hi{font-size:8px;color:var(--g2);letter-spacing:1px;}
+.rw-hi .v{color:var(--g1);}
+.rw-cv{flex:1;position:relative;min-height:0;}
+#rC{position:absolute;top:0;left:0;width:100%;height:100%;}
+.rw-leg{display:flex;gap:8px;padding:3px 8px;border-top:1px solid var(--g4);flex-wrap:wrap;justify-content:center;flex-shrink:0;}
+.li{display:flex;align-items:center;gap:3px;font-size:8px;color:var(--g2);letter-spacing:1px;}
+.ls{width:6px;height:6px;border:1px solid;}
+
+/* Warning indicators */
+.wi-bar{display:flex;gap:3px;padding:4px 8px;border-bottom:1px solid var(--g4);flex-shrink:0;flex-wrap:wrap;align-items:center;}
+.wi{display:flex;align-items:center;gap:4px;padding:2px 6px;border:1px solid var(--g4);background:var(--bg);font-size:8px;letter-spacing:1px;position:relative;}
+.wi-icon{font-size:10px;line-height:1;}
+.wi-label{color:var(--g3);text-transform:uppercase;}
+.wi-val{font-weight:normal;}
+/* Traffic level colors */
+.wi.lvl-low .wi-icon{color:var(--g2);}
+.wi.lvl-low .wi-val{color:var(--g2);}
+.wi.lvl-low{border-color:var(--g3);}
+.wi.lvl-med .wi-icon{color:var(--amber);}
+.wi.lvl-med .wi-val{color:var(--amber);}
+.wi.lvl-med{border-color:var(--amber-d);}
+.wi.lvl-high .wi-icon{color:var(--red);}
+.wi.lvl-high .wi-val{color:var(--red);}
+.wi.lvl-high{border-color:var(--red-d);}
+/* Turbulence pulse */
+@keyframes turbWarn{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.wi.turb-warn{animation:turbWarn 1.2s ease-in-out infinite;}
+/* Key/Scale indicator */
+.wi.wi-key{border-color:var(--blue-d);}
+.wi.wi-key .wi-icon{color:var(--blue);}
+.wi.wi-key .wi-val{color:var(--blue);}
+</style>
+</head>
+<body>
+
+<!-- Welcome PIP overlay -->
+<div id="welcomeOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);">
+  <div id="welcomePip" style="font-family:'Share Tech Mono',monospace;background:#060e08;border:1px solid var(--blue);box-shadow:0 0 40px rgba(102,187,221,0.18),0 0 8px rgba(102,187,221,0.1);width:min(520px,90vw);padding:0;position:relative;overflow:hidden;">
+    <!-- Top accent bar -->
+    <div style="height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:0.7;"></div>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;border-bottom:1px solid var(--blue-d);background:rgba(31,61,80,0.22);">
+      <span style="font-size:8px;letter-spacing:4px;color:var(--blue);">SYSTEM BRIEFING</span>
+      <span style="font-size:8px;letter-spacing:2px;color:var(--blue-d);">ACID TRAFFIC CONTROL</span>
+    </div>
+    <!-- Corner brackets -->
+    <div style="position:absolute;top:18px;left:10px;width:10px;height:10px;border-top:1px solid var(--blue);border-left:1px solid var(--blue);opacity:0.5;"></div>
+    <div style="position:absolute;top:18px;right:10px;width:10px;height:10px;border-top:1px solid var(--blue);border-right:1px solid var(--blue);opacity:0.5;"></div>
+    <!-- Body -->
+    <div style="padding:20px 22px 16px;">
+      <div style="font-size:13px;letter-spacing:3px;color:var(--blue);margin-bottom:14px;">WELCOME, OPERATOR</div>
+      <div style="font-size:9px;line-height:1.9;color:#44aa55;letter-spacing:1px;margin-bottom:16px;">
+        ACID TRAFFIC CONTROL is a <span style="color:var(--blue);">16-step groovebox</span> combining a synthesizer sequencer and a drum machine — displayed through a live radar scope interface.
+      </div>
+      <div style="border-left:2px solid var(--blue-d);padding-left:12px;margin-bottom:18px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:8px;letter-spacing:1px;color:#44aa55;line-height:1.8;">
+          <span style="color:var(--blue);">◆ SYNTH</span> — a 16-step acid bass sequencer with filter, LFO, and delay. Aircraft on the scope represent active notes.
+        </div>
+        <div style="font-size:8px;letter-spacing:1px;color:#44aa55;line-height:1.8;">
+          <span style="color:var(--red);">◆ DRUMS</span> — kick, hi-hat, and clap rows beneath the synth grid. Ground structures on the radar mark active drum hits.
+        </div>
+        <div style="font-size:8px;letter-spacing:1px;color:#44aa55;line-height:1.8;">
+          <span style="color:var(--amber);">◆ CONTROLS</span> — adjust BPM, swing (Formation), density, turbulence, filter and delay from the lower panel.
+        </div>
+      </div>
+      <div style="font-size:8px;color:var(--blue-d);letter-spacing:2px;margin-bottom:20px;">
+        → START BY HITTING <span style="color:var(--blue);border:1px solid var(--blue-d);padding:1px 6px;">GENERATE SYNTH</span> TO LOAD A SEQUENCE AND BEGIN.
+      </div>
+      <!-- Understood button -->
+      <div style="display:flex;justify-content:center;">
+        <button id="welcomeBtn" onclick="closeWelcome()" style="font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--blue);border:1px solid var(--blue-d);background:transparent;padding:7px 32px;cursor:pointer;animation:welcomePulse 1.8s ease-in-out infinite;transition:background 0.15s;">UNDERSTOOD</button>
+      </div>
+    </div>
+    <!-- Bottom accent bar -->
+    <div style="height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:0.4;"></div>
+  </div>
+</div>
+
+<style>
+@keyframes welcomePulse{
+  0%,100%{box-shadow:0 0 4px var(--blue-d);border-color:var(--blue-d);}
+  50%{box-shadow:0 0 14px var(--blue),0 0 5px var(--blue);border-color:var(--blue);}
+}
+#welcomeBtn:hover{background:rgba(31,61,80,0.45);}
+#welcomeOverlay{transition:opacity 0.4s;}
+</style>
+<div id="shell">
+  <div class="hdr">
+    <div class="hdr-t"><b>ACID TRAFFIC CONTROL</b></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="hdr-r">AUDIO <span class="on">ONLINE</span> &middot; 16-STEP &middot; 3-OCT</div>
+      <button class="tb" style="color:var(--g2);border-color:var(--g3);font-size:9px;padding:2px 10px;" onclick="toggleOpts()">OPTIONS</button>
+    </div>
+  </div>
+  <!-- Options panel -->
+  <div class="opts-panel" id="optsPanel">
+    <div class="opts-row">
+      <span class="opts-lbl">THEME</span>
+      <div class="opts-themes" id="themeOpts">
+        <div class="opts-th sel" data-t="phosphor" onclick="setTheme(this)"><div class="opts-swatch" style="background:#66dd77;"></div>Phosphor</div>
+        <div class="opts-th" data-t="amber" onclick="setTheme(this)"><div class="opts-swatch" style="background:#ddaa44;"></div>Amber</div>
+        <div class="opts-th" data-t="ice" onclick="setTheme(this)"><div class="opts-swatch" style="background:#66ccee;"></div>Ice</div>
+        <div class="opts-th" data-t="crimson" onclick="setTheme(this)"><div class="opts-swatch" style="background:#ee5566;"></div>Crimson</div>
+        <div class="opts-th" data-t="violet" onclick="setTheme(this)"><div class="opts-swatch" style="background:#bb88ee;"></div>Violet</div>
+        <div class="opts-th" data-t="white" onclick="setTheme(this)"><div class="opts-swatch" style="background:#ccddcc;"></div>Ghost</div>
+      </div>
+    </div>
+    <div class="opts-row">
+      <span class="opts-lbl">ASPECT</span>
+      <div class="opts-themes">
+        <div class="opts-th sel" data-a="16:9" onclick="setARBtn(this)">16:9</div>
+        <div class="opts-th" data-a="16:10" onclick="setARBtn(this)">16:10</div>
+        <div class="opts-th" data-a="4:3" onclick="setARBtn(this)">4:3</div>
+        <div class="opts-th" data-a="9:19.5" onclick="setARBtn(this)">iPhone</div>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+    <div class="left">
+      <div class="trn">
+        <button class="tb tb-p" id="playBtn" onclick="togglePlay()">PLAY</button>
+        <button class="tb tb-s" onclick="stopSeq()">STOP</button>
+        <div class="bpm-a"><label>BPM</label><input type="number" class="bpm-i" id="bpmInput" value="95" min="40" max="300" onchange="updateBPM(this.value)"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;">
+          <div class="vol-g"><label>VOL</label><input type="range" class="vol-r" id="volMaster" min="0" max="100" value="80" oninput="setVol()"></div>
+          <div class="vol-g"><label>SYN</label><input type="range" class="vol-r vr-amb" id="volSyn" min="0" max="100" value="70" oninput="setVol()"></div>
+          <div class="vol-g"><label style="color:var(--red)">KCK</label><input type="range" class="vol-r vr-red" id="volKick" min="0" max="100" value="80" oninput="setVol()"></div>
+          <div class="vol-g"><label style="color:var(--g1)">HH</label><input type="range" class="vol-r vr-grn" id="volHH" min="0" max="100" value="70" oninput="setVol()"></div>
+          <div class="vol-g"><label style="color:var(--amber)">CLP</label><input type="range" class="vol-r vr-amb" id="volClap" min="0" max="100" value="75" oninput="setVol()"></div>
+        </div>
+      </div>
+      <div class="gw">
+        <div class="rl">Step</div><div class="sg" id="sNums"></div>
+        <div style="margin-top:3px;margin-bottom:1px;border-top:1px solid var(--g3);position:relative;">
+          <span style="position:absolute;top:-5px;left:6px;background:var(--panel);padding:0 5px;font-size:7px;color:var(--g3);letter-spacing:2px;">DRUMS</span>
+        </div>
+        <div style="padding:3px 3px 4px;margin-top:4px;">
+        <div class="rl cr">Kick</div><div class="sg" id="kickGrid"></div>
+        <div class="rl" style="margin-top:1px">Hi-Hat</div><div class="sg" id="hhGrid"></div>
+        <div class="rl ca" style="margin-top:1px">Clap</div><div class="sg" id="clapGrid"></div>
+        </div>
+        <div style="margin-top:5px;margin-bottom:3px;border-top:1px solid var(--g3);position:relative;">
+          <span style="position:absolute;top:-5px;left:6px;background:var(--panel);padding:0 5px;font-size:7px;color:var(--g3);letter-spacing:2px;">SYNTH</span>
+        </div>
+        <div class="rl" style="margin-top:4px">Note</div><div class="sg" id="nGrid"></div>
+        <div class="rl" style="margin-top:2px">Gate</div><div class="sg" id="gGrid"></div>
+        <div class="rl ca" style="margin-top:2px">Wave</div><div class="sg" id="wGrid"></div>
+        <div class="rl cb" style="margin-top:2px">Glide</div><div class="sg" id="glGrid"></div>
+        <div class="rl cr" style="margin-top:2px">Accent</div><div class="sg" id="aGrid"></div>
+        <!-- Randomizer integrated into sequencer panel -->
+        <div style="margin-top:6px;padding-top:5px;border-top:1px solid var(--g4);">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">
+            <span class="rla">KEY</span>
+            <select class="rse" id="rKey"><option value="0">C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option></select>
+            <span class="rla" style="margin-left:4px">SCALE</span>
+            <select class="rse" id="rSc"><option value="major">Major</option><option value="minor" selected>Minor</option><option value="dorian">Dorian</option><option value="phrygian">Phrygian</option><option value="lydian">Lydian</option><option value="mixolydian">Mixolydian</option><option value="locrian">Locrian</option><option value="harm_minor">Harm Min</option><option value="mel_minor">Mel Min</option><option value="penta_maj">Penta Maj</option><option value="penta_min">Penta Min</option><option value="blues">Blues</option><option value="chromatic">Chromatic</option></select>
+            <span class="rla" style="margin-left:4px">OSC</span>
+            <div class="oo"><div class="oop sel" data-v="saw" onclick="sRO(this)">SAW</div><div class="oop" data-v="sqr" onclick="sRO(this)">SQR</div><div class="oop" data-v="tri" onclick="sRO(this)">TRI</div><div class="oop" data-v="sin" onclick="sRO(this)">SIN</div><div class="oop" data-v="random" onclick="sRO(this)">RND</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">
+            <span class="rla">TRAFFIC</span>
+            <div class="sw"><div class="st_ tb_" id="dT"><div class="sf fb" id="dF" style="width:75%"></div></div><span class="sv vb" id="dV">75%</span></div>
+            <div class="spa" style="margin-left:4px"><span class="rla">TURBULENCE</span><span class="spd" id="spD" style="color:var(--g3)">&#8226;</span></div>
+            <div class="sw"><div class="st_ tr_" id="sT"><div class="sf fr" id="sF" style="width:20%"></div></div><span class="sv vr" id="sV">20%</span></div>
+          </div>
+          <!-- ── CONTROL MODULES — single row ── -->
+          <div style="display:flex;gap:4px;align-items:stretch;margin-top:5px;">
+
+              <!-- GENERATE / CLEAR + FORMATION -->
+              <div style="display:flex;flex-direction:column;gap:4px;justify-content:center;">
+                <div style="border:1px solid var(--g4);padding:4px 6px;display:flex;flex-direction:column;gap:3px;">
+                  <button class="rb rb-b pulse" id="genBtn" onclick="execR()">GENERATE SYNTH</button>
+                  <button class="rb rb-b" id="genDrumBtn" onclick="genDrums()">GENERATE DRUMS</button>
+                  <button class="rb rb-c" onclick="clrAll()">CLEAR</button>
+                </div>
+                <div style="border:1px solid var(--violet-d);background:rgba(68,34,85,0.15);padding:4px 6px 5px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+                  <div style="font-size:7px;letter-spacing:3px;color:var(--violet);border-bottom:1px solid var(--violet-d);width:100%;text-align:center;padding-bottom:2px;margin-bottom:3px;">FORMATION</div>
+                  <canvas id="swgKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="FORMATION — drag up/down"></canvas>
+                  <span style="font-size:9px;letter-spacing:1px;color:var(--violet);" id="swgV">65%</span>
+                </div>
+              </div>
+
+              <!-- FILTER module -->
+              <div style="border:1px solid var(--amber-d);background:rgba(90,69,21,0.12);padding:4px 7px 5px;display:flex;flex-direction:column;gap:3px;">
+                <div style="font-size:7px;letter-spacing:3px;color:var(--amber);border-bottom:1px solid var(--amber-d);padding-bottom:2px;margin-bottom:1px;">FILTER</div>
+                <div style="display:flex;gap:6px;align-items:flex-end;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="fCutKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="CUTOFF"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--amber-d);">CUT</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--amber);" id="fV">50%</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="fResKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="RESONANCE"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--amber-d);">RES</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--amber);" id="qV">30%</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="fEnvKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="ENV AMOUNT"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--amber-d);">ENV</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--amber);" id="fEnvV">40%</span>
+                  </div>
+                </div>
+                <div style="display:flex;gap:3px;margin-top:1px;">
+                  <div class="oop" id="fmJuno" onclick="setFMode('juno')" style="border-color:var(--amber);color:var(--amber);background:var(--amber-d);font-size:8px;padding:2px 6px;">JUNO</div>
+                  <div class="oop" id="fmAcid" onclick="setFMode('acid')" style="border-color:var(--amber-d);color:var(--amber-d);font-size:8px;padding:2px 6px;">ACID</div>
+                </div>
+              </div>
+
+              <!-- DELAY module -->
+              <div style="border:1px solid var(--blue-d);background:rgba(31,61,80,0.18);padding:4px 7px 5px;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:7px;letter-spacing:3px;color:var(--blue);border-bottom:1px solid var(--blue-d);padding-bottom:2px;margin-bottom:1px;">DELAY</div>
+                <div style="display:flex;gap:6px;align-items:flex-end;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="ppTimeKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="TIME"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--blue-d);">TIME</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--blue);" id="ppTimeV">30%</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="ppFbKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="FEEDBACK"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--blue-d);">FB</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--blue);" id="ppFbV">40%</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="ppMixKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="MIX"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--blue-d);">MIX</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--blue);" id="ppMixV">35%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- LFO 1 module -->
+              <div style="border:1px solid var(--g3);background:rgba(20,57,28,0.25);padding:4px 7px 5px;display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;border-bottom:1px solid var(--g3);padding-bottom:2px;margin-bottom:1px;">
+                  <span style="font-size:7px;letter-spacing:3px;color:var(--g2);">LFO</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:flex-end;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="lfoRateKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="RATE"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--g3);">RATE</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--g2);" id="lfoRateV">0.1</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="lfoDepthKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="DEPTH"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--g3);">DEPTH</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--g2);" id="lfoDepthV">50%</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;margin-top:1px;">
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <div id="lfoToFilt" onclick="lfoToggle('filt')" style="width:22px;height:9px;border:1px solid var(--g3);background:var(--g4);cursor:pointer;position:relative;transition:all 0.12s;">
+                      <div id="lfoToFiltDot" style="width:7px;height:7px;background:var(--g3);position:absolute;top:0;left:0;transition:left 0.12s;"></div>
+                    </div>
+                    <span style="font-size:7px;color:var(--g3);letter-spacing:1px;">FILTER</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <div id="lfoToPP" onclick="lfoToggle('pp')" style="width:22px;height:9px;border:1px solid var(--g3);background:var(--g4);cursor:pointer;position:relative;transition:all 0.12s;">
+                      <div id="lfoToPPDot" style="width:7px;height:7px;background:var(--g3);position:absolute;top:0;left:0;transition:left 0.12s;"></div>
+                    </div>
+                    <span style="font-size:7px;color:var(--g3);letter-spacing:1px;">DELAY</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <div id="lfoToTurb" onclick="lfoToggle('turb')" style="width:22px;height:9px;border:1px solid var(--g3);background:var(--g4);cursor:pointer;position:relative;transition:all 0.12s;">
+                      <div id="lfoToTurbDot" style="width:7px;height:7px;background:var(--g3);position:absolute;top:0;left:0;transition:left 0.12s;"></div>
+                    </div>
+                    <span style="font-size:7px;color:var(--g3);letter-spacing:1px;">TURB</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- LFO 2 module -->
+              <div style="border:1px solid var(--g3);background:rgba(20,57,28,0.25);padding:4px 7px 5px;display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;border-bottom:1px solid var(--g3);padding-bottom:2px;margin-bottom:1px;">
+                  <span style="font-size:7px;letter-spacing:3px;color:var(--g2);">LFO·2</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:flex-end;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="lfo2RateKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="RATE"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--g3);">RATE</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--g2);" id="lfo2RateV">0.1</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    <canvas id="lfo2DepthKnob" width="36" height="36" style="cursor:ns-resize;display:block;" title="DEPTH"></canvas>
+                    <span style="font-size:7px;letter-spacing:2px;color:var(--g3);">DEPTH</span>
+                    <span style="font-size:9px;letter-spacing:1px;color:var(--g2);" id="lfo2DepthV">50%</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;margin-top:1px;">
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <div id="lfo2ToRes" onclick="lfo2Toggle('res')" style="width:22px;height:9px;border:1px solid var(--g3);background:var(--g4);cursor:pointer;position:relative;transition:all 0.12s;">
+                      <div id="lfo2ToResDot" style="width:7px;height:7px;background:var(--g3);position:absolute;top:0;left:0;transition:left 0.12s;"></div>
+                    </div>
+                    <span style="font-size:7px;color:var(--g3);letter-spacing:1px;">F·RES</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <div id="lfo2ToFb" onclick="lfo2Toggle('fb')" style="width:22px;height:9px;border:1px solid var(--g3);background:var(--g4);cursor:pointer;position:relative;transition:all 0.12s;">
+                      <div id="lfo2ToFbDot" style="width:7px;height:7px;background:var(--g3);position:absolute;top:0;left:0;transition:left 0.12s;"></div>
+                    </div>
+                    <span style="font-size:7px;color:var(--g3);letter-spacing:1px;">DLY·FB</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CHAOS module -->
+              <div style="border:1px solid var(--red-d);background:rgba(90,32,32,0.15);padding:4px 7px 5px;display:flex;flex-direction:column;gap:3px;">
+                <div style="display:flex;align-items:center;border-bottom:1px solid var(--red-d);padding-bottom:2px;margin-bottom:1px;">
+                  <span style="font-size:7px;letter-spacing:3px;color:var(--red-d);">CHAOS</span>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:2px;">
+                  <button id="chaosBtn" onclick="chaosStart()" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--red-d);background:radial-gradient(circle at 38% 35%,#a03030,#3a0a0a);cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:1px;color:var(--red-d);transition:all 0.1s;box-shadow:0 0 6px rgba(221,85,85,0.15);"></button>
+                  <span style="font-size:7px;letter-spacing:2px;color:var(--red-d);">DRUM</span>
+                  <span style="font-size:7px;letter-spacing:2px;color:var(--red-d);" id="chaosStatus">FILL</span>
+                </div>
+              </div>
+
+          </div><!-- end single-row modules -->
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="rw">
+        <div class="rw-hud">
+          <div class="rw-ht">SCOPE</div>
+          <div class="rw-hi">TRK:<span class="v" id="trk">0</span> STEP:<span class="v" id="stD">--</span></div>
+        </div>
+        <div class="wi-bar" id="wiBar">
+          <div class="wi wi-key" id="wiKey">
+            <span class="wi-icon">&#9830;</span>
+            <span class="wi-label">KEY</span>
+            <span class="wi-val" id="wiKeyVal">C MAJ</span>
+          </div>
+          <div class="wi lvl-med" id="wiTraffic">
+            <span class="wi-icon" id="wiTrafficIcon">&#9650;</span>
+            <span class="wi-label">TRAFFIC</span>
+            <span class="wi-val" id="wiTrafficVal">75%</span>
+          </div>
+          <div class="wi" id="wiSwing" style="border-color:var(--violet-d);">
+            <span class="wi-icon" style="color:var(--violet-d);" id="wiSwingIcon">&#9670;</span>
+            <span class="wi-label" style="color:var(--violet-d);">FORMATION</span>
+            <span class="wi-val" style="color:var(--violet-d);" id="wiSwingVal">STRAIGHT</span>
+          </div>
+          <div class="wi lvl-low" id="wiTurb">
+            <span class="wi-icon" id="wiTurbIcon">&#9711;</span>
+            <span class="wi-label">TURBULENCE</span>
+            <span class="wi-val" id="wiTurbVal">20%</span>
+          </div>
+        </div>
+        <div class="rw-cv"><canvas id="rC"></canvas></div>
+        <div class="rw-leg">
+          <div class="li"><div class="ls" style="border-color:var(--g1);background:var(--g4)"></div>SAW Airliner</div>
+          <div class="li"><div class="ls" style="border-color:var(--red);background:var(--red-d)"></div>SQR Fighter</div>
+          <div class="li"><div class="ls" style="border-color:var(--blue);background:var(--blue-d)"></div>TRI Heli</div>
+          <div class="li"><div class="ls" style="border-color:var(--amber);background:var(--amber-d)"></div>SIN Drone</div>
+          <div class="li"><div class="ls" style="border-color:var(--red);background:var(--red-d)"></div>Runway=Kick</div>
+          <div class="li"><div class="ls" style="border-color:var(--g1);background:var(--g4)"></div>Dish=HH</div>
+          <div class="li"><div class="ls" style="border-color:var(--amber);background:var(--amber-d)"></div>Tower=Clap</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const MM=36,MX=71,MT=MX-MM+1,NS=16;
+const WT=['sawtooth','square','triangle','sine'],WL=['SAW','SQR','TRI','SIN'];
+const SC={major:[0,2,4,5,7,9,11],minor:[0,2,3,5,7,8,10],dorian:[0,2,3,5,7,9,10],phrygian:[0,1,3,5,7,8,10],lydian:[0,2,4,6,7,9,11],mixolydian:[0,2,4,5,7,9,10],locrian:[0,1,3,5,6,8,10],harm_minor:[0,2,3,5,7,8,11],mel_minor:[0,2,3,5,7,9,11],penta_maj:[0,2,4,7,9],penta_min:[0,3,5,7,10],blues:[0,3,5,6,7,10],chromatic:[0,1,2,3,4,5,6,7,8,9,10,11]};
+const mn=m=>NN[m%12]+Math.floor(m/12-1);
+const mf=m=>440*Math.pow(2,(m-69)/12);
+
+let st=[];for(let i=0;i<NS;i++)st.push({n:48,g:true,gl:false,ac:false,w:0});
+let kick=new Array(NS).fill(false);
+let hh=new Array(NS).fill(false);
+let clap=new Array(NS).fill(false);
+let bpm=95,playing=false,cs=-1,iid=null,rDe=75,rSp=20,rOs='saw',swing=0.6;
+let fCut=50,fRes=30,fEnv=40; // filter cutoff%, resonance%, envelope amount%
+let fMode='juno'; // 'juno' or 'acid'
+let fType='lowpass'; // kept for PIP compat, always lowpass now
+
+// LFO state
+let lfoRate=0.22; // 0–1 knob position; maps to 0.005–2 Hz (starts ~0.07Hz)
+let lfoDepth=0.5; // 0–1
+let lfoPhase=0; // current phase in radians
+let lfoRoutes={filt:false,pp:false,turb:false};
+let lfoRafId=null;
+let lfoLastT=null;
+// Base values that LFO modulates around
+let fCutBase=50,ppTimeBase=30,rSpBase=20;
+
+// LFO2 state
+let lfo2Rate=0.18;
+let lfo2Depth=0.5;
+let lfo2Phase=0;
+let lfo2Routes={res:false,fb:false};
+let lfo2LastT=null;
+let fResBase=30,ppFbBase=40;
+let ppTime=30,ppFeedback=40,ppMix=35; // ping pong delay: time%, feedback%, mix%
+let ppDelayL=null,ppDelayR=null,ppFbGainL=null,ppFbGainR=null,ppMixGain=null,ppDryGain=null,ppSplitter=null,ppMerger=null; // ping pong nodes
+
+// Audio
+let ax=null,mg=null,fl=null,fl2=null,di=null,co=null,cg=null;
+let fPreSat=null,fPostSat=null; // saturation waveshapers for filter character
+let synGain=null,kickGain=null,hhGain=null,clapGain=null; // separate channel gains
+
+function makeSatCurve(amount){
+  const n=512;const c=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=(i/256)-1;c[i]=Math.tanh(x*amount)/Math.tanh(amount);}
+  return c;
+}
+
+function initA(){
+  if(ax)return;
+  ax=new(window.AudioContext||window.webkitAudioContext)();
+
+  // Master output
+  mg=ax.createGain();mg.gain.value=0.8;
+  mg.connect(ax.destination);
+
+  // Synth chain:
+  // osc → cg → fPreSat → fl → fl2 → fPostSat → di(mild) → pp → synGain → master
+  synGain=ax.createGain();synGain.gain.value=0.7;
+
+  // Two cascaded biquad filters (fl + fl2) — fl2 only used in Juno mode
+  fl=ax.createBiquadFilter();fl.type='lowpass';
+  fl2=ax.createBiquadFilter();fl2.type='lowpass';
+
+  // Pre-filter soft saturation — warms up the signal before filtering
+  fPreSat=ax.createWaveShaper();
+  fPreSat.curve=makeSatCurve(1.5);
+  fPreSat.oversample='2x';
+
+  // Post-filter overdrive (for Acid mode bite)
+  fPostSat=ax.createWaveShaper();
+  fPostSat.curve=makeSatCurve(1.0);
+  fPostSat.oversample='2x';
+
+  // Mild master dist (kept subtle)
+  di=ax.createWaveShaper();
+  di.curve=makeSatCurve(0.8);
+
+  // Ping pong delay
+  ppSplitter=ax.createChannelSplitter(2);
+  ppMerger=ax.createChannelMerger(2);
+  ppDelayL=ax.createDelay(2.0);
+  ppDelayR=ax.createDelay(2.0);
+  ppFbGainL=ax.createGain();
+  ppFbGainR=ax.createGain();
+  ppMixGain=ax.createGain();
+  ppDryGain=ax.createGain();
+
+  ppDelayL.connect(ppFbGainR);
+  ppDelayR.connect(ppFbGainL);
+  ppFbGainL.connect(ppDelayL);
+  ppFbGainR.connect(ppDelayR);
+  ppDelayL.connect(ppMixGain);
+  ppDelayR.connect(ppMixGain);
+
+  // Signal path: fl → fl2 → fPostSat → di → pp → synGain
+  fl.connect(fl2);
+  fl2.connect(fPostSat);
+  fPostSat.connect(di);
+  di.connect(ppDelayL);
+  di.connect(ppDryGain);
+  ppDryGain.connect(synGain);
+  ppMixGain.connect(synGain);
+  synGain.connect(mg);
+
+  applyPingPong();
+
+  // Kick bus
+  kickGain=ax.createGain();kickGain.gain.value=0.8;kickGain.connect(mg);
+  // Hi-hat bus
+  hhGain=ax.createGain();hhGain.gain.value=0.7;hhGain.connect(mg);
+  // Clap bus
+  clapGain=ax.createGain();clapGain.gain.value=0.75;clapGain.connect(mg);
+
+  applyPingPong();applyFilter();setVol();
+}
+function pS(si){
+  const s=st[si],now=ax.currentTime,dur=60/bpm/4,freq=mf(s.n),wt=WT[s.w];
+  if(!s.g){if(cg){cg.gain.cancelScheduledValues(now);cg.gain.setTargetAtTime(0,now,0.01);}return;}
+  const av=s.ac?1.0:0.55;
+  const accent=s.ac;
+
+  // ── FILTER ENGINE ──────────────────────────────────────────────────────────
+  // Both modes: lowpass. Cutoff maps to a musical frequency range with a large sweet spot.
+  fl.type='lowpass';fl2.type='lowpass';
+
+  const envAmt=fEnv/100; // 0–1
+  const envAccBoost=accent?1.4:1.0;
+
+  if(fMode==='juno'){
+    // Roland Juno-106 character:
+    // • Smooth 4-pole emulation via two cascaded 2-pole biquads
+    // • Cutoff sweet spot: 120Hz–4kHz (log scale, centered musically)
+    // • Resonance: gentle curve, never harsh — max Q ~3.5
+    // • Envelope: slow warm attack, medium decay — like the Juno chorus/filter combo
+    // • fl2 tracks fl at -1 octave relative shift for 4-pole character
+    const minF=100,maxF=5000;
+    // Cutoff uses a mild S-curve to widen the sweet spot in the mid range
+    const t=fCut/100;
+    const shaped=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2; // ease-in-out
+    const baseCut=minF*Math.pow(maxF/minF,shaped);
+
+    // Envelope: soft exponential attack then slow decay
+    const peakMult=1+envAmt*envAccBoost*3.5; // peak up to 4.5x base
+    const peakF=Math.min(baseCut*peakMult,maxF*1.1);
+    const decayF=Math.max(baseCut*0.6,minF);
+    const attackT=0.006; // fast attack — 6ms
+    const decayT=dur*(0.3+envAmt*1.4); // decay scales with env amount
+
+    // Q: Juno is smooth — Q 0.6–3.5
+    const junoQ=0.6+Math.pow(fRes/100,1.4)*2.9;
+    fl.Q.value=junoQ;
+    fl2.Q.value=junoQ*0.7; // fl2 slightly less resonant for smooth cascade
+
+    // fl and fl2 tuned together — fl2 at same freq (true 4-pole when cascaded)
+    fl.frequency.cancelScheduledValues(now);
+    fl.frequency.setValueAtTime(Math.max(minF,baseCut*0.7),now);
+    fl.frequency.linearRampToValueAtTime(peakF,now+attackT);
+    fl.frequency.setTargetAtTime(decayF,now+attackT,decayT*0.4);
+
+    fl2.frequency.cancelScheduledValues(now);
+    fl2.frequency.setValueAtTime(Math.max(minF,baseCut*0.7),now);
+    fl2.frequency.linearRampToValueAtTime(peakF*0.9,now+attackT*1.5);
+    fl2.frequency.setTargetAtTime(decayF,now+attackT,decayT*0.55);
+
+    // Post sat gentle for Juno warmth
+    fPostSat.curve=makeSatCurve(0.6+fRes/100*0.8);
+
+  }else{
+    // TB-303 Acid character:
+    // • Sharp 18dB/oct feel — fl at full resonance, fl2 open (no cascade)
+    // • Cutoff sweet spot: 80Hz–3500Hz — the 303 has a narrow, punchy range
+    // • Resonance: aggressive — Q 0.5–20, approaches self-oscillation at max
+    // • Envelope: snappy attack, fast decay — the 303 "blip" and "squelch"
+    // • Accent: drastically increases env amount and peak level
+    const minF=80,maxF=3800;
+    const t=fCut/100;
+    // 303 mapping: heavily weighted toward low end (most of the character is 80–800Hz)
+    const baseCut=minF*Math.pow(maxF/minF,Math.pow(t,0.8));
+
+    const accentEnvBoost=accent?2.2:1.0;
+    const peakMult=1+envAmt*accentEnvBoost*6.0; // very pronounced env for acid
+    const peakF=Math.min(baseCut*peakMult,maxF*1.3);
+    const decayF=Math.max(baseCut*0.4,minF*0.8);
+    const attackT=0.002; // very fast attack — 2ms
+    const decayT=dur*(0.08+envAmt*0.55); // fast decay — classic 303 snappiness
+
+    // Q: 303 gets spiky — 0.5 to ~18
+    const acidQ=0.5+Math.pow(fRes/100,1.1)*17.5;
+    fl.Q.value=acidQ;
+    fl2.Q.value=0.5; // fl2 wide open — acts as a gentle presence boost only
+    fl2.frequency.cancelScheduledValues(now);
+    fl2.frequency.setValueAtTime(6000,now); // fl2 open, not contributing much
+
+    fl.frequency.cancelScheduledValues(now);
+    fl.frequency.setValueAtTime(Math.max(minF*0.8,baseCut*0.5),now);
+    fl.frequency.linearRampToValueAtTime(peakF,now+attackT);
+    fl.frequency.setTargetAtTime(decayF,now+attackT,decayT*0.35);
+
+    // Acid needs more bite in post sat
+    fPostSat.curve=makeSatCurve(1.2+fRes/100*2.5);
+  }
+
+  // ── OSCILLATOR / GLIDE ─────────────────────────────────────────────────────
+  if(s.gl&&co&&co._w===wt){
+    co.frequency.cancelScheduledValues(now);
+    co.frequency.setTargetAtTime(freq,now,0.06);
+    cg.gain.cancelScheduledValues(now);
+    cg.gain.setValueAtTime(av,now);
+    cg.gain.setTargetAtTime(av*0.35,now+dur*0.7,0.02);
+  }else{
+    if(co){try{co.stop(now+0.01);}catch(e){}}
+    co=ax.createOscillator();co.type=wt;co._w=wt;
+    co.frequency.setValueAtTime(freq,now);
+    cg=ax.createGain();
+    cg.gain.setValueAtTime(0,now);
+    cg.gain.linearRampToValueAtTime(av,now+0.004);
+    cg.gain.setTargetAtTime(av*0.35,now+dur*0.5,0.04);
+    co.connect(cg);
+    // Pre-sat warms signal before filter
+    fPreSat.curve=makeSatCurve(fMode==='acid'?1.8:1.0);
+    cg.connect(fPreSat);
+    fPreSat.connect(fl);
+    co.start(now);
+  }
+}
+
+// Volume control
+function setVol(){
+  const vm=document.getElementById('volMaster').value/100;
+  const vs=document.getElementById('volSyn').value/100;
+  const vk=document.getElementById('volKick').value/100;
+  const vh=document.getElementById('volHH').value/100;
+  const vc=document.getElementById('volClap').value/100;
+  if(mg)mg.gain.value=vm;
+  if(synGain)synGain.gain.value=vs;
+  if(kickGain)kickGain.gain.value=vk;
+  if(hhGain)hhGain.gain.value=vh;
+  if(clapGain)clapGain.gain.value=vc;
+}
+
+// Drum synthesis — routed to dedicated buses, bypass synth filter
+function playKick(){
+  if(!ax||!kickGain)return;const now=ax.currentTime;
+  // Main body — sine sweep from 160Hz down to 35Hz
+  const osc=ax.createOscillator();const g=ax.createGain();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(160,now);
+  osc.frequency.exponentialRampToValueAtTime(35,now+0.15);
+  g.gain.setValueAtTime(1.2,now);
+  g.gain.setTargetAtTime(0.8,now+0.02,0.05);
+  g.gain.exponentialRampToValueAtTime(0.001,now+0.4);
+  osc.connect(g);g.connect(kickGain);osc.start(now);osc.stop(now+0.45);
+  // Sub layer — lower sine for weight
+  const sub=ax.createOscillator();const sg2=ax.createGain();
+  sub.type='sine';
+  sub.frequency.setValueAtTime(80,now);
+  sub.frequency.exponentialRampToValueAtTime(25,now+0.2);
+  sg2.gain.setValueAtTime(0.9,now);
+  sg2.gain.exponentialRampToValueAtTime(0.001,now+0.35);
+  sub.connect(sg2);sg2.connect(kickGain);sub.start(now);sub.stop(now+0.4);
+  // Click transient — sharp attack
+  const click=ax.createOscillator();const cg2=ax.createGain();
+  click.type='square';click.frequency.value=1000;
+  cg2.gain.setValueAtTime(0.5,now);cg2.gain.exponentialRampToValueAtTime(0.001,now+0.012);
+  click.connect(cg2);cg2.connect(kickGain);click.start(now);click.stop(now+0.02);
+  // Noise burst for top-end snap
+  const nBuf=ax.createBuffer(1,Math.floor(ax.sampleRate*0.015),ax.sampleRate);
+  const nd=nBuf.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=(Math.random()*2-1);
+  const nSrc=ax.createBufferSource();nSrc.buffer=nBuf;
+  const nG=ax.createGain();nG.gain.setValueAtTime(0.2,now);nG.gain.exponentialRampToValueAtTime(0.001,now+0.02);
+  const nHp=ax.createBiquadFilter();nHp.type='highpass';nHp.frequency.value=2000;
+  nSrc.connect(nHp);nHp.connect(nG);nG.connect(kickGain);nSrc.start(now);
+}
+function playHH(){
+  if(!ax||!hhGain)return;const now=ax.currentTime;
+  const bufSz=Math.floor(ax.sampleRate*0.06);
+  const buf=ax.createBuffer(1,bufSz,ax.sampleRate);
+  const d=buf.getChannelData(0);for(let i=0;i<bufSz;i++)d[i]=(Math.random()*2-1);
+  const src=ax.createBufferSource();src.buffer=buf;
+  const hp=ax.createBiquadFilter();hp.type='highpass';hp.frequency.value=7000;
+  const bp=ax.createBiquadFilter();bp.type='peaking';bp.frequency.value=10000;bp.Q.value=2;bp.gain.value=6;
+  const g=ax.createGain();
+  g.gain.setValueAtTime(0.6,now);
+  g.gain.exponentialRampToValueAtTime(0.001,now+0.08);
+  src.connect(hp);hp.connect(bp);bp.connect(g);g.connect(hhGain);src.start(now);
+}
+function playClap(){
+  if(!ax||!clapGain)return;const now=ax.currentTime;
+  // Multi-layered noise burst for clap — 3 staggered hits
+  for(let j=0;j<3;j++){
+    const offset=j*0.012;
+    const bufSz=Math.floor(ax.sampleRate*0.04);
+    const buf=ax.createBuffer(1,bufSz,ax.sampleRate);
+    const d=buf.getChannelData(0);for(let i=0;i<bufSz;i++)d[i]=(Math.random()*2-1);
+    const src=ax.createBufferSource();src.buffer=buf;
+    const bp=ax.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1200;bp.Q.value=1.5;
+    const g=ax.createGain();
+    g.gain.setValueAtTime(0,now+offset);
+    g.gain.linearRampToValueAtTime(0.7,now+offset+0.003);
+    g.gain.exponentialRampToValueAtTime(0.001,now+offset+0.12);
+    src.connect(bp);bp.connect(g);g.connect(clapGain);src.start(now+offset);
+  }
+  // Reverb tail — longer noise
+  const tailSz=Math.floor(ax.sampleRate*0.15);
+  const tailBuf=ax.createBuffer(1,tailSz,ax.sampleRate);
+  const td=tailBuf.getChannelData(0);for(let i=0;i<tailSz;i++)td[i]=(Math.random()*2-1)*Math.exp(-i/(ax.sampleRate*0.06));
+  const tailSrc=ax.createBufferSource();tailSrc.buffer=tailBuf;
+  const tbp=ax.createBiquadFilter();tbp.type='bandpass';tbp.frequency.value=1000;tbp.Q.value=0.8;
+  const tg=ax.createGain();tg.gain.setValueAtTime(0.3,now+0.03);tg.gain.exponentialRampToValueAtTime(0.001,now+0.2);
+  tailSrc.connect(tbp);tbp.connect(tg);tg.connect(clapGain);tailSrc.start(now+0.03);
+}
+
+// Mutation flash helper — adds class, removes after 1s
+function flashEl(id,cls){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.remove(cls);
+  void el.offsetWidth; // force reflow to restart animation
+  el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls),1000);
+}
+
+function adv(){
+  cs=(cs+1)%NS;
+  // If a fill is queued and we just hit step 0, activate it now
+  if(chaosPending&&cs===0)chaosActivate();
+  // Live turbulence: randomly mutate the current step before playing
+  const turb=rSp/100;
+  if(turb>0&&st[cs].g){
+    const s=st[cs];
+    let changed=false;
+
+    // Glide: chance to toggle
+    if(Math.random()<turb*0.18){
+      s.gl=!s.gl;
+      const e=document.getElementById('lc'+cs);
+      e.className='tc tc-l'+(s.gl?' on':'');
+      e.textContent=s.gl?'GLD':'--';
+      flashEl('lc'+cs,'mut');
+      changed=true;
+    }
+    // Accent: chance to toggle
+    if(Math.random()<turb*0.14){
+      s.ac=!s.ac;
+      const e=document.getElementById('ac'+cs);
+      e.className='tc tc-a'+(s.ac?' on':'');
+      e.textContent=s.ac?'ACC':'--';
+      flashEl('ac'+cs,'mut');
+      changed=true;
+    }
+    // Osc type: chance to mutate
+    if(Math.random()<turb*0.10){
+      const nw=Math.floor(Math.random()*4);
+      if(nw!==s.w){
+        s.w=nw;
+        document.getElementById('wc'+cs).textContent=WL[s.w];
+        flashEl('wc'+cs,'mut');
+        wavePipShow=true;wavePipFade=0;
+        changed=true;
+      }
+    }
+  }
+  pS(cs);
+  // Trigger drums
+  if(kick[cs])playKick();
+  if(hh[cs])playHH();
+  if(clap[cs])playClap();
+  hlS();uHud();
+}
+// ═══ MPC-ACCURATE SWING ═══
+// swingPct: 50 = straight, 75 = full triplet swing (matches MPC 50–75 display)
+// MPC method: even 16th notes play on-grid; odd 16th notes (off-beats) are
+// delayed by: offset = (pct/100 - 0.5) * 2 * (stepDur/3)
+// At 50% → offset=0. At 75% → offset = stepDur/3 (one triplet subdivision).
+function getSwingOffset(stepIdx){
+  const stepDur=60/bpm/4;
+  const pct=50+swing*25;
+  const offset=(pct/100-0.5)*2*(stepDur/3);
+  return (stepIdx%2===1)?offset:0;
+}
+
+// Look-ahead scheduler — schedules adv() calls at precise WebAudio clock times.
+// Swing is applied as an absolute delay on off-beat steps, exactly as the MPC does.
+let schedTid=null;
+let nextStepTime=0;
+let nextStepIdx=0;
+const SCHED_AHEAD=0.1; // seconds look-ahead
+const SCHED_INTERVAL=25; // ms poll
+
+function schedLoop(){
+  if(!playing||!ax)return;
+  while(nextStepTime<ax.currentTime+SCHED_AHEAD){
+    const si=nextStepIdx%NS;
+    const fireAt=nextStepTime+getSwingOffset(si);
+    const delay=Math.max(0,(fireAt-ax.currentTime)*1000);
+    (function(stepFire){
+      setTimeout(()=>{if(playing)adv();},stepFire);
+    })(delay);
+    nextStepTime+=60/bpm/4;
+    nextStepIdx++;
+  }
+}
+
+function schedStart(){
+  if(!ax)return;
+  nextStepTime=ax.currentTime+0.05;
+  nextStepIdx=0;
+  schedTid=setInterval(schedLoop,SCHED_INTERVAL);
+}
+
+function togglePlay(){
+  initA();
+  if(playing){stopSeq();return;}
+  playing=true;cs=-1;swA=-Math.PI/2;lastFrame=performance.now();
+  document.getElementById('playBtn').classList.add('act');
+  document.getElementById('playBtn').textContent='PAUSE';
+  schedStart();
+}
+function stopSeq(){
+  playing=false;
+  if(schedTid){clearInterval(schedTid);schedTid=null;}
+  cs=-1;
+  document.getElementById('playBtn').classList.remove('act');
+  document.getElementById('playBtn').textContent='PLAY';
+  if(cg&&ax){cg.gain.cancelScheduledValues(ax.currentTime);cg.gain.setTargetAtTime(0,ax.currentTime,0.02);}
+  hlS();uHud();
+}
+function updateBPM(v){bpm=Math.max(40,Math.min(300,parseInt(v)||95));document.getElementById('bpmInput').value=bpm;}
+
+// ═══ FORMATION ROTARY KNOB ═══
+// Drag up = more swing (higher %), drag down = less.
+// Range: 50% (straight) to 75% (full triplet), matching MPC display convention.
+(function initSwingKnob(){
+  const knob=document.getElementById('swgKnob');
+  if(!knob)return;
+  const W=36,R=14,cx=18,cy=18;
+  // Full 270° sweep: 7 o'clock (225°) → 5 o'clock (495°=135° wrapped)
+  // startDeg=225°, endDeg=225+270=495° (= 135° going clockwise)
+  const startDeg=225,sweepDeg=270;
+  const endDeg=startDeg+sweepDeg; // 495° but canvas wraps fine
+  function toRad(deg){return deg*Math.PI/180;}
+
+  function drawKnob(){
+    const ctx=knob.getContext('2d');
+    ctx.clearRect(0,0,W,W);
+    const t=swing; // 0–1
+    const angleDeg=startDeg+t*sweepDeg;
+    const angleRad=toRad(angleDeg);
+
+    // Outer ring track (arc from start to end)
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,toRad(startDeg),toRad(startDeg+sweepDeg));
+    ctx.strokeStyle='#442255';ctx.lineWidth=2;ctx.stroke();
+
+    // Filled arc from start to current
+    if(t>0.001){
+      ctx.beginPath();
+      ctx.arc(cx,cy,R,toRad(startDeg),toRad(angleDeg));
+      ctx.strokeStyle='#bb77dd';ctx.lineWidth=2;ctx.stroke();
+    }
+
+    // Tick marks at 50% (0), 58% (0.33), 67% (0.67), 75% (1)
+    [0,0.33,0.67,1].forEach(tv=>{
+      const td=toRad(startDeg+tv*sweepDeg);
+      const inner=R-3,outer=R+2;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(td)*inner,cy+Math.sin(td)*inner);
+      ctx.lineTo(cx+Math.cos(td)*outer,cy+Math.sin(td)*outer);
+      ctx.strokeStyle=(Math.abs(tv-swing)<0.05)?'#bb77dd':'#442255';
+      ctx.lineWidth=1;ctx.stroke();
+    });
+
+    // Knob body
+    const grad=ctx.createRadialGradient(cx-3,cy-3,1,cx,cy,R-3);
+    grad.addColorStop(0,'#1a0a22');
+    grad.addColorStop(1,'#0d0513');
+    ctx.beginPath();
+    ctx.arc(cx,cy,R-3,0,Math.PI*2);
+    ctx.fillStyle=grad;ctx.fill();
+    ctx.strokeStyle=t>0.01?'#bb77dd':'#442255';
+    ctx.lineWidth=1;ctx.stroke();
+
+    // Phosphor indicator line (pointer)
+    const pInner=3,pOuter=R-5;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(angleRad)*pInner,cy+Math.sin(angleRad)*pInner);
+    ctx.lineTo(cx+Math.cos(angleRad)*pOuter,cy+Math.sin(angleRad)*pOuter);
+    ctx.strokeStyle=t>0.01?'#bb77dd':'#442255';
+    ctx.lineWidth=2;ctx.lineCap='round';ctx.stroke();
+
+    // Glow dot at tip when active
+    if(t>0.01){
+      ctx.beginPath();
+      ctx.arc(cx+Math.cos(angleRad)*pOuter,cy+Math.sin(angleRad)*pOuter,2,0,Math.PI*2);
+      ctx.fillStyle='#bb77dd';
+      ctx.shadowBlur=6;ctx.shadowColor='#bb77dd';
+      ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+
+  function setSwing(t){
+    swing=Math.max(0,Math.min(1,t));
+    const pct=Math.round(50+swing*25);
+    document.getElementById('swgV').textContent=pct+'%';
+    // HUD badge
+    const el=document.getElementById('wiSwing');
+    const ic=document.getElementById('wiSwingIcon');
+    const vl=document.getElementById('wiSwingVal');
+    const col=swing<0.02?'var(--violet-d)':'var(--violet)';
+    el.style.borderColor=col;ic.style.color=col;vl.style.color=col;
+    ic.innerHTML=swing<0.02?'&#9671;':swing<0.5?'&#9670;':'&#9670;&#9670;';
+    vl.textContent=pct+'%';
+    drawKnob();
+  }
+
+  // Drag: vertical movement (up = more swing)
+  let dragging=false,dragY=0,dragStart=0;
+  knob.addEventListener('mousedown',e=>{dragging=true;dragY=e.clientY;dragStart=swing;e.preventDefault();});
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dy=dragY-e.clientY; // positive = dragged up
+    setSwing(dragStart+dy/80);
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;});
+  knob.addEventListener('touchstart',e=>{dragging=true;dragY=e.touches[0].clientY;dragStart=swing;},{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!dragging)return;
+    const dy=dragY-e.touches[0].clientY;
+    setSwing(dragStart+dy/80);
+  },{passive:true});
+  document.addEventListener('touchend',()=>{dragging=false;});
+  // Scroll wheel support
+  knob.addEventListener('wheel',e=>{
+    e.preventDefault();
+    setSwing(swing-(e.deltaY>0?0.02:-0.02));
+  },{passive:false});
+
+  drawKnob();
+})();
+
+// UI
+function build(){['sNums','nGrid','gGrid','wGrid','glGrid','aGrid','kickGrid','hhGrid','clapGrid'].forEach(id=>document.getElementById(id).innerHTML='');
+for(let i=0;i<NS;i++){
+  let d;
+  d=document.createElement('div');d.className='sn'+(i%4===0?' beat':'');d.id='sn'+i;d.textContent=String(i+1).padStart(2,'0');document.getElementById('sNums').appendChild(d);
+
+  // Kick row
+  d=document.createElement('div');d.className='tc tc-kick'+(kick[i]?' on':'');d.id='ki'+i;d.textContent=kick[i]?'K':'--';d.onclick=(()=>{const idx=i;return()=>tKick(idx);})();document.getElementById('kickGrid').appendChild(d);
+
+  // Hi-hat row
+  d=document.createElement('div');d.className='tc tc-hh'+(hh[i]?' on':'');d.id='hi'+i;d.textContent=hh[i]?'H':'--';d.onclick=(()=>{const idx=i;return()=>tHH(idx);})();document.getElementById('hhGrid').appendChild(d);
+
+  // Clap row
+  d=document.createElement('div');d.className='tc tc-clap'+(clap[i]?' on':'');d.id='cl'+i;d.textContent=clap[i]?'C':'--';d.onclick=(()=>{const idx=i;return()=>tClap(idx);})();document.getElementById('clapGrid').appendChild(d);
+
+  const nc=document.createElement('div');nc.className='nc';nc.id='nc'+i;const nb=document.createElement('div');nb.className='nb';nb.id='nb'+i;nc.appendChild(nb);const nn=document.createElement('div');nn.className='nn';nn.id='nn'+i;nc.appendChild(nn);mkDrag(nc,i);document.getElementById('nGrid').appendChild(nc);
+  d=document.createElement('div');d.className='tc tc-g'+(st[i].g?' on':'');d.id='gc'+i;d.textContent=st[i].g?'ON':'--';d.onclick=(()=>{const idx=i;return()=>tG(idx);})();document.getElementById('gGrid').appendChild(d);
+  d=document.createElement('div');d.className='tc tc-w';d.id='wc'+i;d.textContent=WL[st[i].w];d.onclick=(()=>{const idx=i;return()=>cW(idx);})();document.getElementById('wGrid').appendChild(d);
+  d=document.createElement('div');d.className='tc tc-l'+(st[i].gl?' on':'');d.id='lc'+i;d.textContent=st[i].gl?'GLD':'--';d.onclick=(()=>{const idx=i;return()=>tL(idx);})();document.getElementById('glGrid').appendChild(d);
+  d=document.createElement('div');d.className='tc tc-a'+(st[i].ac?' on':'');d.id='ac'+i;d.textContent=st[i].ac?'ACC':'--';d.onclick=(()=>{const idx=i;return()=>tA(idx);})();document.getElementById('aGrid').appendChild(d);
+}uAll();}
+
+function mkDrag(cell,idx){let d=false,sy=0,sn=0;
+const mv=e=>{if(!d)return;const cy=e.touches?e.touches[0].clientY:e.clientY;st[idx].n=Math.max(MM,Math.min(MX,sn+Math.round((sy-cy)/3)));uN(idx);};
+const up=()=>{d=false;document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);};
+cell.addEventListener('mousedown',e=>{e.preventDefault();d=true;sy=e.clientY;sn=st[idx].n;document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
+cell.addEventListener('touchstart',e=>{d=true;sy=e.touches[0].clientY;sn=st[idx].n;document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);},{passive:true});}
+
+function uN(i){document.getElementById('nb'+i).style.height=((st[i].n-MM)/MT)*100+'%';document.getElementById('nn'+i).textContent=mn(st[i].n);pipIdx=i;wavePipShow=false;}
+function uAll(){for(let i=0;i<NS;i++){document.getElementById('nb'+i).style.height=((st[i].n-MM)/MT)*100+'%';document.getElementById('nn'+i).textContent=mn(st[i].n);}}
+function tG(i){st[i].g=!st[i].g;const e=document.getElementById('gc'+i);e.className='tc tc-g'+(st[i].g?' on':'');e.textContent=st[i].g?'ON':'--';pipIdx=i;wavePipShow=false;}
+let wavePipShow=false; // wave PIP visible
+let wavePipFade=0; // fade-in alpha accumulator
+function cW(i){st[i].w=(st[i].w+1)%4;document.getElementById('wc'+i).textContent=WL[st[i].w];pipIdx=i;wavePipShow=true;wavePipFade=0;}
+function tL(i){st[i].gl=!st[i].gl;const e=document.getElementById('lc'+i);e.className='tc tc-l'+(st[i].gl?' on':'');e.textContent=st[i].gl?'GLD':'--';pipIdx=i;wavePipShow=false;}
+function tA(i){st[i].ac=!st[i].ac;const e=document.getElementById('ac'+i);e.className='tc tc-a'+(st[i].ac?' on':'');e.textContent=st[i].ac?'ACC':'--';pipIdx=i;wavePipShow=false;}
+function tKick(i){kick[i]=!kick[i];const e=document.getElementById('ki'+i);e.className='tc tc-kick'+(kick[i]?' on':'');e.textContent=kick[i]?'K':'--';}
+function tHH(i){hh[i]=!hh[i];const e=document.getElementById('hi'+i);e.className='tc tc-hh'+(hh[i]?' on':'');e.textContent=hh[i]?'H':'--';}
+function tClap(i){clap[i]=!clap[i];const e=document.getElementById('cl'+i);e.className='tc tc-clap'+(clap[i]?' on':'');e.textContent=clap[i]?'C':'--';}
+
+let chaosActive=false,chaosOrig=null,chaosTimer=null;
+let chaosPending=false; // queued, waiting for step 1
+let chaosPipAlpha=0;
+let chaosPipPhase='off';
+
+function chaosRefreshDrums(){
+  for(let i=0;i<NS;i++){
+    const ke=document.getElementById('ki'+i);if(ke){ke.className='tc tc-kick'+(kick[i]?' on':'');ke.textContent=kick[i]?'K':'--';}
+    const he=document.getElementById('hi'+i);if(he){he.className='tc tc-hh'+(hh[i]?' on':'');he.textContent=hh[i]?'H':'--';}
+    const ce=document.getElementById('cl'+i);if(ce){ce.className='tc tc-clap'+(clap[i]?' on':'');ce.textContent=clap[i]?'C':'--';}
+  }
+}
+
+function chaosStart(){
+  if(chaosActive||chaosPending)return;
+  const btn=document.getElementById('chaosBtn');
+  const status=document.getElementById('chaosStatus');
+  // If not playing, fire immediately
+  if(!playing){chaosActivate();return;}
+  // Otherwise queue for next step 1
+  chaosPending=true;
+  btn.style.boxShadow='0 0 8px rgba(221,85,85,0.4)';
+  btn.style.borderColor='#883333';
+  status.textContent='WAIT';
+  status.style.color='#883333';
+}
+
+function chaosActivate(){
+  chaosPending=false;
+  chaosActive=true;
+  chaosOrig={kick:[...kick],hh:[...hh],clap:[...clap]};
+
+  const fillKick=[false,false,false,false, false,false,false,false, false,false,false,false, true,false,true,false];
+  const fillHH  =[true,true,true,true,    true,true,true,true,    true,true,true,true,    true,true,true,true];
+  const fillClap=[false,false,false,false, false,false,false,false, false,false,false,false, false,false,false,true];
+  for(let i=0;i<NS;i++){kick[i]=fillKick[i];hh[i]=fillHH[i];clap[i]=fillClap[i];}
+  chaosRefreshDrums();
+
+  const btn=document.getElementById('chaosBtn');
+  const status=document.getElementById('chaosStatus');
+  btn.style.boxShadow='0 0 18px rgba(221,85,85,0.85)';
+  btn.style.borderColor='var(--red)';
+  status.textContent='LIVE';
+  status.style.color='var(--red)';
+  chaosPipPhase='in';
+
+  const barMs=(240/bpm)*1000;
+  chaosTimer=setTimeout(()=>{
+    for(let i=0;i<NS;i++){kick[i]=chaosOrig.kick[i];hh[i]=chaosOrig.hh[i];clap[i]=chaosOrig.clap[i];}
+    chaosOrig=null;
+    chaosActive=false;
+    chaosTimer=null;
+    chaosRefreshDrums();
+    btn.style.boxShadow='0 0 6px rgba(221,85,85,0.15)';
+    btn.style.borderColor='var(--red-d)';
+    status.textContent='FILL';
+    status.style.color='var(--red-d)';
+    chaosPipPhase='out';
+  },barMs);
+}
+
+function drawChaosPIP(w,h){
+  if(chaosPipPhase==='off')return;
+  // Fade in/out
+  if(chaosPipPhase==='in'){chaosPipAlpha=Math.min(1,chaosPipAlpha+0.08);if(chaosPipAlpha>=1)chaosPipPhase='hold';}
+  else if(chaosPipPhase==='out'){chaosPipAlpha=Math.max(0,chaosPipAlpha-0.05);if(chaosPipAlpha<=0){chaosPipAlpha=0;chaosPipPhase='off';return;}}
+
+  const t=Date.now()*0.003;
+  const blink=Math.sin(t*6)>0; // fast blink
+  const pw=180,ph=100;
+  const px=(w-pw)/2,py=(h-ph)/2;
+
+  rc.save();
+  rc.globalAlpha=chaosPipAlpha;
+
+  // Backdrop vignette
+  rc.fillStyle='rgba(0,0,0,0.55)';
+  rc.fillRect(0,0,w,h);
+
+  // Panel background
+  rc.fillStyle='rgba(20,4,4,0.96)';
+  rc.fillRect(px,py,pw,ph);
+
+  // Red border — pulsing
+  rc.strokeStyle=blink?C.red:'#8b2020';
+  rc.lineWidth=1.5;
+  rc.strokeRect(px,py,pw,ph);
+
+  // Top accent bar
+  rc.fillStyle=blink?C.red:'#8b2020';
+  rc.globalAlpha=chaosPipAlpha*(blink?0.5:0.2);
+  rc.fillRect(px+1,py+1,pw-2,3);
+  rc.globalAlpha=chaosPipAlpha;
+
+  // Header strip
+  rc.fillStyle=blink?'rgba(221,85,85,0.18)':'rgba(80,20,20,0.5)';
+  rc.fillRect(px,py,pw,16);
+
+  // Header text
+  rc.fillStyle=blink?C.red:'#882222';
+  rc.font='bold 8px Share Tech Mono';
+  rc.textAlign='center';
+  rc.fillText('⚠  DRUM FILL ACTIVE  ⚠',px+pw/2,py+11);
+
+  // WARNING text
+  rc.font='bold 28px Share Tech Mono';
+  rc.fillStyle=blink?C.red:'#661a1a';
+  rc.globalAlpha=chaosPipAlpha*(blink?1:0.5);
+  rc.fillText('WARNING',px+pw/2,py+55);
+  rc.globalAlpha=chaosPipAlpha;
+
+  // Subtext
+  rc.font='7px Share Tech Mono';
+  rc.fillStyle='#aa3333';
+  rc.fillText('FILL PATTERN ENGAGED — REVERTING ON BAR END',px+pw/2,py+72);
+
+  // Corner brackets
+  const bl=8;
+  rc.strokeStyle=C.red;rc.lineWidth=1.5;rc.globalAlpha=chaosPipAlpha*0.7;
+  [[px,py],[px+pw,py],[px,py+ph],[px+pw,py+ph]].forEach(([cx,cy],idx)=>{
+    const sx=idx%2===0?1:-1,sy=idx<2?1:-1;
+    rc.beginPath();rc.moveTo(cx+sx*bl,cy);rc.lineTo(cx,cy);rc.lineTo(cx,cy+sy*bl);rc.stroke();
+  });
+
+  rc.textAlign='left';
+  rc.restore();
+}
+function hlS(){for(let i=0;i<NS;i++){const a=i===cs;document.getElementById('sn'+i).className='sn'+(i%4===0?' beat':'')+(a?' cur':'');document.getElementById('nc'+i).className='nc'+(a?' cur':'');}}
+function rUI(i){uN(i);const g=document.getElementById('gc'+i);g.className='tc tc-g'+(st[i].g?' on':'');g.textContent=st[i].g?'ON':'--';document.getElementById('wc'+i).textContent=WL[st[i].w];const l=document.getElementById('lc'+i);l.className='tc tc-l'+(st[i].gl?' on':'');l.textContent=st[i].gl?'GLD':'--';const a=document.getElementById('ac'+i);a.className='tc tc-a'+(st[i].ac?' on':'');a.textContent=st[i].ac?'ACC':'--';}
+
+// Randomizer
+function sRO(el){document.querySelectorAll('.oop').forEach(e=>e.classList.remove('sel'));el.classList.add('sel');rOs=el.dataset.v;}
+function mkSl(tI,fI,vI,cb){const tr=document.getElementById(tI),fi=document.getElementById(fI),va=document.getElementById(vI);let d=false;function s(e){const r=tr.getBoundingClientRect();const x=Math.max(0,Math.min(1,((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width));const v=Math.round(x*100);fi.style.width=v+'%';va.textContent=v+'%';cb(v);}tr.addEventListener('mousedown',e=>{d=true;s(e);});document.addEventListener('mousemove',e=>{if(d)s(e);});document.addEventListener('mouseup',()=>{d=false;});tr.addEventListener('touchstart',e=>{d=true;s(e);},{passive:true});document.addEventListener('touchmove',e=>{if(d)s(e);},{passive:true});document.addEventListener('touchend',()=>{d=false;});}
+mkSl('dT','dF','dV',v=>{rDe=v;uWarn();});
+mkSl('sT','sF','sV',v=>{rSp=v;rSpBase=v;const d=document.getElementById('spD');if(v<25){d.textContent='•';d.style.color='var(--g3)';}else if(v<50){d.textContent='••';d.style.color='var(--amber-d)';}else if(v<75){d.textContent='•••';d.style.color='var(--amber)';}else{d.textContent='••••';d.style.color='var(--red)';}uWarn();});
+
+// ═══ PING PONG & FILTER ROTARY KNOBS ═══
+function makeKnob(canvasId,valId,initPct,onChange,colors){
+  const knob=document.getElementById(canvasId);
+  if(!knob)return{redraw:()=>{}};
+  const W=36,R=14,cx=18,cy=18;
+  const startDeg=225,sweepDeg=270;
+  const trackCol=(colors&&colors.dim)||'#1f3d50';
+  const fillCol=(colors&&colors.fill)||'#66bbdd';
+  const glowCol=(colors&&colors.glow)||fillCol;
+  const bodyCol0=(colors&&colors.body0)||'#071520';
+  const bodyCol1=(colors&&colors.body1)||'#030a10';
+  function toRad(d){return d*Math.PI/180;}
+  let val=initPct/100; // 0–1
+  let lfoOn=false; // true when LFO is actively modulating this knob
+
+  function draw(){
+    const ctx=knob.getContext('2d');
+    ctx.clearRect(0,0,W,W);
+    const angleDeg=startDeg+val*sweepDeg;
+    const angleRad=toRad(angleDeg);
+
+    // LFO halo ring — green pulse outside track when LFO active
+    if(lfoOn){
+      ctx.beginPath();
+      ctx.arc(cx,cy,R+3,0,Math.PI*2);
+      ctx.strokeStyle='rgba(102,221,119,0.22)';ctx.lineWidth=3;ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx,cy,R+1.5,0,Math.PI*2);
+      ctx.strokeStyle='rgba(68,170,85,0.45)';ctx.lineWidth=1;ctx.stroke();
+    }
+
+    // Track arc
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,toRad(startDeg),toRad(startDeg+sweepDeg));
+    ctx.strokeStyle=lfoOn?'rgba(68,170,85,0.5)':trackCol;ctx.lineWidth=2;ctx.stroke();
+
+    // Filled arc
+    if(val>0.001){
+      ctx.beginPath();
+      ctx.arc(cx,cy,R,toRad(startDeg),toRad(angleDeg));
+      ctx.strokeStyle=lfoOn?'#66dd77':fillCol;ctx.lineWidth=2;ctx.stroke();
+    }
+
+    // Tick marks at 0, 0.25, 0.5, 0.75, 1
+    [0,0.25,0.5,0.75,1].forEach(tv=>{
+      const td=toRad(startDeg+tv*sweepDeg);
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(td)*(R-3),cy+Math.sin(td)*(R-3));
+      ctx.lineTo(cx+Math.cos(td)*(R+2),cy+Math.sin(td)*(R+2));
+      ctx.strokeStyle=(Math.abs(tv-val)<0.04)?(lfoOn?'#66dd77':fillCol):trackCol;
+      ctx.lineWidth=1;ctx.stroke();
+    });
+
+    // Knob body
+    const grad=ctx.createRadialGradient(cx-3,cy-3,1,cx,cy,R-3);
+    grad.addColorStop(0,bodyCol0);grad.addColorStop(1,bodyCol1);
+    ctx.beginPath();
+    ctx.arc(cx,cy,R-3,0,Math.PI*2);
+    ctx.fillStyle=grad;ctx.fill();
+    ctx.strokeStyle=val>0.01?(lfoOn?'#66dd77':fillCol):trackCol;ctx.lineWidth=1;ctx.stroke();
+
+    // Pointer line
+    const pI=3,pO=R-5;
+    const pCol=lfoOn?'#66dd77':(val>0.01?fillCol:trackCol);
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(angleRad)*pI,cy+Math.sin(angleRad)*pI);
+    ctx.lineTo(cx+Math.cos(angleRad)*pO,cy+Math.sin(angleRad)*pO);
+    ctx.strokeStyle=pCol;ctx.lineWidth=2;ctx.lineCap='round';
+    if(lfoOn){ctx.shadowBlur=5;ctx.shadowColor='#66dd77';}
+    ctx.stroke();ctx.shadowBlur=0;
+
+    // Glow dot
+    if(val>0.01){
+      ctx.beginPath();
+      ctx.arc(cx+Math.cos(angleRad)*pO,cy+Math.sin(angleRad)*pO,2,0,Math.PI*2);
+      ctx.fillStyle=lfoOn?'#66dd77':glowCol;
+      ctx.shadowBlur=lfoOn?8:6;ctx.shadowColor=lfoOn?'#66dd77':glowCol;
+      ctx.fill();ctx.shadowBlur=0;
+    }
+  }
+
+  function set(t){
+    val=Math.max(0,Math.min(1,t));
+    document.getElementById(valId).textContent=Math.round(val*100)+'%';
+    onChange(Math.round(val*100));
+    draw();
+  }
+
+  // External redraw — called by LFO to update visual without firing onChange
+  function redraw(t,active){
+    val=Math.max(0,Math.min(1,t));
+    lfoOn=!!active;
+    draw();
+  }
+
+  let dragging=false,dragY=0,dragStart=0;
+  knob.addEventListener('mousedown',e=>{dragging=true;dragY=e.clientY;dragStart=val;e.preventDefault();});
+  document.addEventListener('mousemove',e=>{if(!dragging)return;set(dragStart+(dragY-e.clientY)/80);});
+  document.addEventListener('mouseup',()=>{dragging=false;});
+  knob.addEventListener('touchstart',e=>{dragging=true;dragY=e.touches[0].clientY;dragStart=val;},{passive:true});
+  document.addEventListener('touchmove',e=>{if(!dragging)return;set(dragStart+(dragY-e.touches[0].clientY)/80);},{passive:true});
+  document.addEventListener('touchend',()=>{dragging=false;});
+  knob.addEventListener('wheel',e=>{e.preventDefault();set(val-(e.deltaY>0?0.02:-0.02));},{passive:false});
+
+  draw();
+  return{redraw};
+}
+
+const ppTimeKnobRef=makeKnob('ppTimeKnob','ppTimeV',30,v=>{ppTime=v;ppTimeBase=v;applyPingPong();triggerDelayPing();});
+const ppFbKnobRef=makeKnob('ppFbKnob','ppFbV',40,v=>{ppFeedback=v;ppFbBase=v;applyPingPong();});
+makeKnob('ppMixKnob','ppMixV',35,v=>{ppMix=v;applyPingPong();});
+
+// Filter knobs — amber palette
+const amberK={dim:'#5a4515',fill:'#ddbb55',glow:'#ddbb55',body0:'#1a1000',body1:'#0d0800'};
+const fCutKnobRef=makeKnob('fCutKnob','fV',50,v=>{fCut=v;fCutBase=v;applyFilter();},amberK);
+const fResKnobRef=makeKnob('fResKnob','qV',30,v=>{fRes=v;fResBase=v;applyFilter();},amberK);
+makeKnob('fEnvKnob','fEnvV',40,v=>{fEnv=v;},amberK);
+
+// ═══ LFO ENGINE ═══
+// Rate: knob 0–1 maps to 0.005Hz (200s/cycle) – 2Hz (0.5s/cycle), log scale
+// Depth: 0–1 scales modulation amount
+// Routes: independently toggle filter cutoff, ping pong time, turbulence amount
+
+function lfoHz(){
+  // log scale: 0→0.005Hz, 0.5→0.1Hz, 1→2Hz
+  return 0.005*Math.pow(400,lfoRate);
+}
+
+function lfoRateLabel(r){
+  const hz=0.005*Math.pow(400,r);
+  if(hz<0.1){return (1/hz).toFixed(0)+'s';}
+  if(hz<1){return hz.toFixed(2)+'Hz';}
+  return hz.toFixed(1)+'Hz';
+}
+
+function lfoTick(ts){
+  lfoRafId=requestAnimationFrame(lfoTick);
+  if(lfoLastT===null){lfoLastT=ts;return;}
+  const dt=(ts-lfoLastT)/1000;
+  lfoLastT=ts;
+
+  const hz=lfoHz();
+  lfoPhase+=hz*dt*Math.PI*2;
+  if(lfoPhase>Math.PI*2)lfoPhase-=Math.PI*2;
+
+  const raw=Math.sin(lfoPhase); // -1 to +1
+  const mod=raw*lfoDepth; // -depth to +depth
+
+  // Route: FILTER cutoff
+  if(lfoRoutes.filt&&ax){
+    const swing=mod*30; // ±30 percentage points around base
+    fCut=Math.max(5,Math.min(95,fCutBase+swing));
+    applyFilter();
+    const fEl=document.getElementById('fV');
+    if(fEl)fEl.textContent=Math.round(fCut)+'%';
+    fCutKnobRef.redraw(fCut/100,true);
+  }else if(!lfoRoutes.filt){
+    fCutKnobRef.redraw(fCut/100,false);
+  }
+
+  // Route: PING PONG time
+  if(lfoRoutes.pp&&ppDelayL){
+    const swing=mod*25;
+    const modTime=Math.max(5,Math.min(95,ppTimeBase+swing));
+    const minT=0.03,maxT=0.75;
+    const t=minT+Math.pow(modTime/100,1.8)*(maxT-minT);
+    ppDelayL.delayTime.setTargetAtTime(t,ax.currentTime,0.05);
+    ppDelayR.delayTime.setTargetAtTime(t*1.03,ax.currentTime,0.05);
+    ppTimeKnobRef.redraw(modTime/100,true);
+    const ppV=document.getElementById('ppTimeV');
+    if(ppV)ppV.textContent=Math.round(modTime)+'%';
+  }else if(!lfoRoutes.pp){
+    ppTimeKnobRef.redraw(ppTimeBase/100,false);
+    const ppV=document.getElementById('ppTimeV');
+    if(ppV)ppV.textContent=Math.round(ppTimeBase)+'%';
+  }
+
+  // Route: TURBULENCE
+  if(lfoRoutes.turb){
+    const swing=mod*30;
+    rSp=Math.max(0,Math.min(100,rSpBase+swing));
+    const pct=Math.round(rSp);
+    const sF=document.getElementById('sF');if(sF)sF.style.width=pct+'%';
+    const sV=document.getElementById('sV');if(sV)sV.textContent=pct+'%';
+    const spD=document.getElementById('spD');
+    if(spD){
+      if(pct<25){spD.textContent='•';spD.style.color='var(--g3)';}
+      else if(pct<50){spD.textContent='••';spD.style.color='var(--amber-d)';}
+      else if(pct<75){spD.textContent='•••';spD.style.color='var(--amber)';}
+      else{spD.textContent='••••';spD.style.color='var(--red)';}
+    }
+  }
+
+  // Draw mini scope
+  drawLfoScope(raw);
+}
+
+function drawLfoScope(rawVal){
+  const cv=document.getElementById('lfoScope');
+  if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Draw one full cycle of the LFO waveform as a tiny oscilloscope
+  const active=lfoRoutes.filt||lfoRoutes.pp||lfoRoutes.turb;
+  const lineCol=active?'#44aa55':'#256633';
+  const glowCol=active?'#66dd77':'#44aa55';
+
+  ctx.beginPath();
+  for(let x=0;x<W;x++){
+    const phase=(x/W)*Math.PI*2+lfoPhase;
+    const y=H/2-(Math.sin(phase)*(H/2-1));
+    if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle=lineCol;ctx.lineWidth=1;
+  if(active){ctx.shadowBlur=3;ctx.shadowColor=glowCol;}
+  ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // Phase cursor dot
+  const cx2=W/2;
+  const cy2=H/2-(rawVal*(H/2-1));
+  ctx.beginPath();
+  ctx.arc(cx2,cy2,2,0,Math.PI*2);
+  ctx.fillStyle=glowCol;
+  if(active){ctx.shadowBlur=4;ctx.shadowColor=glowCol;}
+  ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function lfoToggle(route){
+  lfoRoutes[route]=!lfoRoutes[route];
+  const ids={filt:['lfoToFilt','lfoToFiltDot'],pp:['lfoToPP','lfoToPPDot'],turb:['lfoToTurb','lfoToTurbDot']};
+  const [trackId,dotId]=ids[route];
+  const on=lfoRoutes[route];
+  const track=document.getElementById(trackId);
+  const dot=document.getElementById(dotId);
+  track.style.borderColor=on?'var(--g1)':'var(--g3)';
+  track.style.background=on?'var(--g3)':'var(--g4)';
+  dot.style.left=on?'13px':'0px';
+  dot.style.background=on?'var(--g1)':'var(--g3)';
+  // Restore base values when routing off
+  if(!on){
+    if(route==='filt'){fCut=fCutBase;applyFilter();fCutKnobRef.redraw(fCutBase/100,false);}
+    if(route==='pp'){ppTimeKnobRef.redraw(ppTimeBase/100,false);}
+    if(route==='turb'){rSp=rSpBase;}
+  }
+}
+
+// Green palette for LFO knobs
+const greenK={dim:'#256633',fill:'#44aa55',glow:'#66dd77',body0:'#050e07',body1:'#020a04'};
+makeKnob('lfoRateKnob','lfoRateV',22,v=>{
+  lfoRate=v/100;
+  document.getElementById('lfoRateV').textContent=lfoRateLabel(lfoRate);
+},greenK);
+makeKnob('lfoDepthKnob','lfoDepthV',50,v=>{lfoDepth=v/100;},greenK);
+
+// Override rate display to show Hz/seconds instead of %
+document.getElementById('lfoRateV').textContent=lfoRateLabel(0.22);
+
+// Start LFO loop
+requestAnimationFrame(lfoTick);
+
+// ═══ LFO 2 ENGINE ═══
+// Routes: filter resonance, ping pong feedback
+
+function lfo2Tick(ts){
+  requestAnimationFrame(lfo2Tick);
+  if(lfo2LastT===null){lfo2LastT=ts;return;}
+  const dt=(ts-lfo2LastT)/1000;
+  lfo2LastT=ts;
+
+  const hz=0.005*Math.pow(400,lfo2Rate);
+  lfo2Phase+=hz*dt*Math.PI*2;
+  if(lfo2Phase>Math.PI*2)lfo2Phase-=Math.PI*2;
+
+  const raw=Math.sin(lfo2Phase);
+  const mod=raw*lfo2Depth;
+
+  // Route: FILTER RESONANCE
+  if(lfo2Routes.res&&ax){
+    const swing=mod*30;
+    fRes=Math.max(0,Math.min(100,fResBase+swing));
+    applyFilter();
+    const el=document.getElementById('qV');if(el)el.textContent=Math.round(fRes)+'%';
+    fResKnobRef.redraw(fRes/100,true);
+  }else if(!lfo2Routes.res){
+    fResKnobRef.redraw(fResBase/100,false);
+  }
+
+  // Route: PING PONG FEEDBACK
+  if(lfo2Routes.fb&&ppFbGainL){
+    const swing=mod*25;
+    const modFb=Math.max(0,Math.min(95,ppFbBase+swing));
+    const fb=Math.min(0.88,modFb/100*0.92);
+    ppFbGainL.gain.setTargetAtTime(fb,ax.currentTime,0.05);
+    ppFbGainR.gain.setTargetAtTime(fb,ax.currentTime,0.05);
+    ppFbKnobRef.redraw(modFb/100,true);
+    const el=document.getElementById('ppFbV');if(el)el.textContent=Math.round(modFb)+'%';
+  }else if(!lfo2Routes.fb){
+    ppFbKnobRef.redraw(ppFbBase/100,false);
+    const el=document.getElementById('ppFbV');if(el)el.textContent=Math.round(ppFbBase)+'%';
+  }
+
+  // Draw LFO2 scope
+  const cv=document.getElementById('lfo2Scope');
+  if(cv){
+    const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    const active=lfo2Routes.res||lfo2Routes.fb;
+    ctx.beginPath();
+    for(let x=0;x<W;x++){
+      const phase=(x/W)*Math.PI*2+lfo2Phase;
+      const y=H/2-(Math.sin(phase)*(H/2-1));
+      if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=active?'#44aa55':'#256633';ctx.lineWidth=1;
+    if(active){ctx.shadowBlur=3;ctx.shadowColor='#66dd77';}
+    ctx.stroke();ctx.shadowBlur=0;
+    const cy2=H/2-(raw*(H/2-1));
+    ctx.beginPath();ctx.arc(W/2,cy2,2,0,Math.PI*2);
+    ctx.fillStyle=active?'#66dd77':'#44aa55';
+    if(active){ctx.shadowBlur=4;ctx.shadowColor='#66dd77';}
+    ctx.fill();ctx.shadowBlur=0;
+  }
+}
+
+function lfo2Toggle(route){
+  lfo2Routes[route]=!lfo2Routes[route];
+  const ids={res:['lfo2ToRes','lfo2ToResDot'],fb:['lfo2ToFb','lfo2ToFbDot']};
+  const [trackId,dotId]=ids[route];
+  const on=lfo2Routes[route];
+  const track=document.getElementById(trackId);
+  const dot=document.getElementById(dotId);
+  track.style.borderColor=on?'var(--g1)':'var(--g3)';
+  track.style.background=on?'var(--g3)':'var(--g4)';
+  dot.style.left=on?'13px':'0px';
+  dot.style.background=on?'var(--g1)':'var(--g3)';
+  if(!on){
+    if(route==='res'){fRes=fResBase;applyFilter();fResKnobRef.redraw(fResBase/100,false);}
+    if(route==='fb'){ppFbKnobRef.redraw(ppFbBase/100,false);}
+  }
+}
+
+makeKnob('lfo2RateKnob','lfo2RateV',18,v=>{
+  lfo2Rate=v/100;
+  document.getElementById('lfo2RateV').textContent=lfoRateLabel(lfo2Rate);
+},greenK);
+makeKnob('lfo2DepthKnob','lfo2DepthV',50,v=>{lfo2Depth=v/100;},greenK);
+document.getElementById('lfo2RateV').textContent=lfoRateLabel(0.18);
+
+requestAnimationFrame(lfo2Tick);
+
+function setFMode(mode){
+  fMode=mode;
+  document.getElementById('fmJuno').style.background=mode==='juno'?'var(--amber-d)':'transparent';
+  document.getElementById('fmJuno').style.borderColor=mode==='juno'?'var(--amber)':'var(--amber-d)';
+  document.getElementById('fmJuno').style.color=mode==='juno'?'var(--amber)':'var(--amber-d)';
+  document.getElementById('fmAcid').style.background=mode==='acid'?'var(--amber-d)':'transparent';
+  document.getElementById('fmAcid').style.borderColor=mode==='acid'?'var(--amber)':'var(--amber-d)';
+  document.getElementById('fmAcid').style.color=mode==='acid'?'var(--amber)':'var(--amber-d)';
+  applyFilter();
+}
+
+function sFT(el){} // kept for compat — no-op now
+
+// Filter type color map for PIP — always amber now
+function getFiltCol(){return C.amber;}
+const FILT_NAMES={lowpass:'LP',highpass:'HP',bandpass:'BP',notch:'NOTCH',peaking:'PEAK'};
+
+function applyFilter(){
+  if(!fl||!fl2)return;
+  // Static state update — dynamic envelope handled per-note in pS()
+  const minF=fMode==='juno'?100:80;
+  const maxF=fMode==='juno'?5000:3800;
+  const t=fCut/100;
+  const shaped=fMode==='juno'?(t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2):Math.pow(t,0.8);
+  const baseCut=minF*Math.pow(maxF/minF,shaped);
+  fl.frequency.value=baseCut;
+  fl2.frequency.value=fMode==='juno'?baseCut:6000;
+  if(fMode==='juno'){
+    fl.Q.value=0.6+Math.pow(fRes/100,1.4)*2.9;
+    fl2.Q.value=(0.6+Math.pow(fRes/100,1.4)*2.9)*0.7;
+  }else{
+    fl.Q.value=0.5+Math.pow(fRes/100,1.1)*17.5;
+    fl2.Q.value=0.5;
+  }
+}
+
+function applyPingPong(){
+  if(!ppDelayL||!ppDelayR)return;
+  // Time: 30ms–750ms, mapped to BPM-synced feel but free-running
+  const minT=0.03,maxT=0.75;
+  const t=minT+Math.pow(ppTime/100,1.8)*(maxT-minT);
+  ppDelayL.delayTime.value=t;
+  ppDelayR.delayTime.value=t*1.03; // slight offset for stereo width
+  // Feedback: 0–0.88 (cap to prevent runaway)
+  const fb=Math.min(0.88,ppFeedback/100*0.92);
+  ppFbGainL.gain.value=fb;
+  ppFbGainR.gain.value=fb;
+  // Mix: dry/wet crossfade
+  const wet=ppMix/100;
+  const dry=1-wet*0.7; // partial dry reduction so dry never fully cuts
+  if(ppDryGain)ppDryGain.gain.value=dry;
+  if(ppMixGain)ppMixGain.gain.value=wet*0.6; // scale wet down to prevent clipping
+}
+
+// Warning indicator update
+const SCALE_NAMES={major:'MAJ',minor:'MIN',dorian:'DOR',phrygian:'PHR',lydian:'LYD',mixolydian:'MIX',locrian:'LOC',harm_minor:'H.MIN',mel_minor:'M.MIN',penta_maj:'P.MAJ',penta_min:'P.MIN',blues:'BLU',chromatic:'CHR'};
+
+function uWarn(){
+  // Key/Scale
+  const keyIdx=parseInt(document.getElementById('rKey').value);
+  const scName=document.getElementById('rSc').value;
+  document.getElementById('wiKeyVal').textContent=NN[keyIdx]+' '+SCALE_NAMES[scName];
+
+  // Traffic level
+  const tEl=document.getElementById('wiTraffic');
+  const tIc=document.getElementById('wiTrafficIcon');
+  const tVl=document.getElementById('wiTrafficVal');
+  tVl.textContent=rDe+'%';
+  tEl.classList.remove('lvl-low','lvl-med','lvl-high');
+  if(rDe<35){tEl.classList.add('lvl-low');tIc.innerHTML='&#9661;';}  // low — down triangle
+  else if(rDe<70){tEl.classList.add('lvl-med');tIc.innerHTML='&#9650;';}  // med — up triangle
+  else{tEl.classList.add('lvl-high');tIc.innerHTML='&#9650;&#9650;';}  // high — double
+
+  // Turbulence
+  const uEl=document.getElementById('wiTurb');
+  const uIc=document.getElementById('wiTurbIcon');
+  const uVl=document.getElementById('wiTurbVal');
+  uVl.textContent=rSp+'%';
+  uEl.classList.remove('lvl-low','lvl-med','lvl-high','turb-warn');
+  if(rSp<30){uEl.classList.add('lvl-low');uIc.innerHTML='&#9711;';}  // calm — circle
+  else if(rSp<65){uEl.classList.add('lvl-med');uIc.innerHTML='&#9888;';}  // caution — warning sign
+  else{uEl.classList.add('lvl-high','turb-warn');uIc.innerHTML='&#9888;&#9888;';}  // severe — double warning, pulsing
+}
+
+// Hook key/scale selects to update warnings
+document.getElementById('rKey').addEventListener('change',uWarn);
+document.getElementById('rSc').addEventListener('change',uWarn);
+function execR(){
+  // Stop pulsing
+  document.getElementById('genBtn').classList.remove('pulse');
+
+  // Auto-start on first generate
+  if(!playing)togglePlay();
+
+  const root=parseInt(document.getElementById('rKey').value);
+  const sci=SC[document.getElementById('rSc').value];
+  const dens=rDe/100;
+  const turb=rSp/100; // turbulence drives randomness of glide, accent, osc
+  const om={saw:0,sqr:1,tri:2,sin:3};
+
+  // Build valid scale notes
+  let vn=[];
+  for(let m=MM;m<=MX;m++){if(sci.includes((m-root+120)%12))vn.push(m);}
+  if(!vn.length)vn=[MM];
+
+  for(let i=0;i<NS;i++){
+    // Gate: density controls active step probability
+    st[i].g=Math.random()<dens;
+
+    // Note: pick from scale
+    let n=vn[Math.floor(Math.random()*vn.length)];
+    // Turbulence: chance of octave jump
+    if(Math.random()<turb*0.5) n=Math.max(MM,Math.min(MX,n+(Math.random()<0.5?12:-12)));
+    // Turbulence: chromatic deviation
+    if(Math.random()<turb*0.3) n=Math.max(MM,Math.min(MX,n+(Math.random()<0.5?1:-1)));
+    st[i].n=n;
+
+    // Glide: turbulence determines probability (0% turb = no glides, 100% = ~60% chance)
+    st[i].gl=Math.random()<(turb*0.6);
+
+    // Accent: turbulence determines probability (0% turb = no accents, 100% = ~55% chance)
+    st[i].ac=Math.random()<(turb*0.55);
+
+    // Oscillator: base type from selector, turbulence determines random mutation chance
+    if(rOs==='random'){
+      st[i].w=Math.floor(Math.random()*4);
+    }else{
+      st[i].w=om[rOs];
+      // Turbulence: chance to mutate to a random osc (0% = never, 100% = 65% chance)
+      if(Math.random()<turb*0.65){
+        st[i].w=Math.floor(Math.random()*4);
+      }
+    }
+
+    rUI(i);
+  }
+}
+function clrAll(){
+  for(let i=0;i<NS;i++){st[i]={n:48,g:false,gl:false,ac:false,w:0};rUI(i);}
+  for(let i=0;i<NS;i++){
+    kick[i]=false;hh[i]=false;clap[i]=false;
+    const ke=document.getElementById('ki'+i);if(ke){ke.className='tc tc-kick';ke.textContent='--';}
+    const he=document.getElementById('hi'+i);if(he){he.className='tc tc-hh';he.textContent='--';}
+    const ce=document.getElementById('cl'+i);if(ce){ce.className='tc tc-clap';ce.textContent='--';}
+  }
+}
+
+function genDrums(){
+  if(!playing)togglePlay();
+  const dens=rDe/100;
+  const turb=rSp/100;
+
+  // Kick: anchor on beat 1 always, beat 3 at medium+ density, extra hits via turbulence
+  const kickAnchors=[0,8]; // beats 1 & 3
+  for(let i=0;i<NS;i++){
+    if(kickAnchors.includes(i)){kick[i]=true;}
+    else if(i===4&&dens>0.6){kick[i]=true;} // beat 2 syncopation at high density
+    else if(i===12&&dens>0.5){kick[i]=true;} // beat 4 lead-in
+    else{kick[i]=Math.random()<(dens*0.25+turb*0.2);} // sparse random hits
+    const ke=document.getElementById('ki'+i);
+    if(ke){ke.className='tc tc-kick'+(kick[i]?' on':'');ke.textContent=kick[i]?'K':'--';}
+  }
+
+  // Hi-hat: even 8ths as base, open hats and density/turb affect off-beats
+  for(let i=0;i<NS;i++){
+    const isEighth=i%2===0;
+    const isSixteenth=i%2===1;
+    if(isEighth){hh[i]=Math.random()<(0.6+dens*0.35);}  // strong on even 8ths
+    else{hh[i]=Math.random()<(dens*0.5+turb*0.3);}       // sparse on off-16ths
+    const he=document.getElementById('hi'+i);
+    if(he){he.className='tc tc-hh'+(hh[i]?' on':'');he.textContent=hh[i]?'H':'--';}
+  }
+
+  // Clap/snare: beats 2 & 4 always, occasional ghost notes via turbulence
+  const clapAnchors=[4,12]; // beats 2 & 4
+  for(let i=0;i<NS;i++){
+    if(clapAnchors.includes(i)){clap[i]=true;}
+    else{clap[i]=Math.random()<(turb*0.25+Math.max(0,dens-0.6)*0.3);} // ghosts at high turb/dens
+    const ce=document.getElementById('cl'+i);
+    if(ce){ce.className='tc tc-clap'+(clap[i]?' on':'');ce.textContent=clap[i]?'C':'--';}
+  }
+}
+
+// ═══ RADAR ═══
+const cv=document.getElementById('rC');
+const rc=cv.getContext('2d');
+let swA=0;
+let lastFrame=0;
+let driftA=0; // slow rotation of the aircraft field
+let delayPings=[]; // [{r, alpha}] expanding blue radar rings
+const C={g1:'#66dd77',g2:'#44aa55',g3:'#256633',g4:'#14391c',red:'#dd5555',blue:'#66bbdd',amber:'#ddbb55'};
+let blips=[];for(let i=0;i<NS;i++)blips.push({fa:0,trail:[]});
+let pipIdx=-1; // selected aircraft for PIP display — follows last edited step or radar click
+let lastEdited=-1; // last step edited via UI
+function uHud(){document.getElementById('trk').textContent=st.filter(s=>s.g).length;document.getElementById('stD').textContent=cs>=0?String(cs+1).padStart(2,'0'):'--';}
+
+function bPos(i,cx,cy,rad){
+  const ang=(i/NS)*Math.PI*2-Math.PI/2+driftA;
+  const np=(st[i].n-MM)/MT;
+  const dist=0.18+np*0.72;
+  return{x:cx+Math.cos(ang)*rad*dist,y:cy+Math.sin(ang)*rad*dist,ang};
+}
+
+function glow(col,al){rc.shadowColor=col;rc.shadowBlur=al>0.6?6:0;}
+
+function drAirliner(x,y,h,sz,al){
+  rc.save();rc.translate(x,y);rc.rotate(h);rc.globalAlpha=al;
+  rc.strokeStyle=C.g1;rc.lineWidth=1.8;glow(C.g1,al);
+  rc.beginPath();
+  // fuselage
+  rc.moveTo(-sz*1.3,0);rc.lineTo(sz*1.3,0);
+  // wings — swept back
+  rc.moveTo(sz*0.1,0);rc.lineTo(-sz*0.5,-sz);
+  rc.moveTo(sz*0.1,0);rc.lineTo(-sz*0.5,sz);
+  // wing tips
+  rc.moveTo(-sz*0.5,-sz);rc.lineTo(-sz*0.7,-sz*0.85);
+  rc.moveTo(-sz*0.5,sz);rc.lineTo(-sz*0.7,sz*0.85);
+  // tail
+  rc.moveTo(-sz*1.0,0);rc.lineTo(-sz*1.3,-sz*0.45);
+  rc.moveTo(-sz*1.0,0);rc.lineTo(-sz*1.3,sz*0.45);
+  // engines
+  rc.moveTo(-sz*0.3,-sz*0.5);rc.lineTo(-sz*0.6,-sz*0.5);
+  rc.moveTo(-sz*0.3,sz*0.5);rc.lineTo(-sz*0.6,sz*0.5);
+  rc.stroke();
+  // nose dot
+  rc.fillStyle=C.g1;rc.beginPath();rc.arc(sz*1.3,0,1.2,0,Math.PI*2);rc.fill();
+  rc.shadowBlur=0;rc.restore();
+}
+
+function drFighter(x,y,h,sz,al){
+  rc.save();rc.translate(x,y);rc.rotate(h);rc.globalAlpha=al;
+  rc.strokeStyle=C.red;rc.lineWidth=1.8;glow(C.red,al);
+  // fuselage — long narrow body
+  rc.beginPath();
+  rc.moveTo(sz*1.4,0);rc.lineTo(-sz*1.2,0);
+  rc.stroke();
+  // main delta wings — sharply swept
+  rc.beginPath();
+  rc.moveTo(sz*0.2,0);rc.lineTo(-sz*0.5,-sz*1.0);
+  rc.lineTo(-sz*0.8,-sz*0.8);rc.lineTo(-sz*0.3,0);
+  rc.stroke();
+  rc.beginPath();
+  rc.moveTo(sz*0.2,0);rc.lineTo(-sz*0.5,sz*1.0);
+  rc.lineTo(-sz*0.8,sz*0.8);rc.lineTo(-sz*0.3,0);
+  rc.stroke();
+  // horizontal stabilizers
+  rc.beginPath();
+  rc.moveTo(-sz*0.9,0);rc.lineTo(-sz*1.2,-sz*0.45);
+  rc.moveTo(-sz*0.9,0);rc.lineTo(-sz*1.2,sz*0.45);
+  rc.stroke();
+  // twin vertical tails (shown as short uprights)
+  rc.lineWidth=2;
+  rc.beginPath();
+  rc.moveTo(-sz*0.95,-sz*0.12);rc.lineTo(-sz*1.1,-sz*0.35);
+  rc.moveTo(-sz*0.95,sz*0.12);rc.lineTo(-sz*1.1,sz*0.35);
+  rc.stroke();
+  // intake notch
+  rc.lineWidth=1.2;
+  rc.beginPath();
+  rc.moveTo(sz*0.5,-sz*0.12);rc.lineTo(sz*0.3,-sz*0.2);rc.lineTo(sz*0.3,-sz*0.08);
+  rc.moveTo(sz*0.5,sz*0.12);rc.lineTo(sz*0.3,sz*0.2);rc.lineTo(sz*0.3,sz*0.08);
+  rc.stroke();
+  // nose cone
+  rc.fillStyle=C.red;rc.beginPath();rc.arc(sz*1.4,0,1.4,0,Math.PI*2);rc.fill();
+  // exhaust glow
+  rc.globalAlpha=al*0.4;rc.fillStyle=C.red;
+  rc.beginPath();rc.ellipse(-sz*1.25,0,sz*0.15,sz*0.08,0,0,Math.PI*2);rc.fill();
+  rc.shadowBlur=0;rc.restore();
+}
+
+function drHeli(x,y,h,sz,al){
+  rc.save();rc.translate(x,y);rc.globalAlpha=al;
+  rc.strokeStyle=C.blue;rc.lineWidth=1.8;glow(C.blue,al);
+  // body
+  rc.beginPath();rc.ellipse(0,0,sz*0.5,sz*0.3,h,0,Math.PI*2);rc.stroke();
+  // main rotor — spinning
+  const t=Date.now()*0.012;
+  rc.lineWidth=1.2;
+  rc.beginPath();
+  rc.moveTo(Math.cos(t)*sz,Math.sin(t)*sz);
+  rc.lineTo(Math.cos(t+Math.PI)*sz,Math.sin(t+Math.PI)*sz);
+  rc.moveTo(Math.cos(t+Math.PI/2)*sz,Math.sin(t+Math.PI/2)*sz);
+  rc.lineTo(Math.cos(t+Math.PI*1.5)*sz,Math.sin(t+Math.PI*1.5)*sz);
+  rc.stroke();
+  // rotor hub
+  rc.fillStyle=C.blue;rc.beginPath();rc.arc(0,0,1.5,0,Math.PI*2);rc.fill();
+  // tail boom + tail rotor
+  rc.lineWidth=1.5;rc.beginPath();
+  const tx=Math.cos(h+Math.PI)*sz*0.4,ty=Math.sin(h+Math.PI)*sz*0.4;
+  const bx=Math.cos(h+Math.PI)*sz*1.1,by=Math.sin(h+Math.PI)*sz*1.1;
+  rc.moveTo(tx,ty);rc.lineTo(bx,by);rc.stroke();
+  // tail rotor disc
+  rc.beginPath();rc.arc(bx,by,sz*0.25,0,Math.PI*2);rc.stroke();
+  rc.shadowBlur=0;rc.restore();
+}
+
+function drDrone(x,y,h,sz,al){
+  rc.save();rc.translate(x,y);rc.rotate(h+Date.now()*0.0003);rc.globalAlpha=al;
+  rc.strokeStyle=C.amber;rc.lineWidth=1.8;glow(C.amber,al);
+  const a=sz*0.7;
+  // X frame
+  rc.beginPath();rc.moveTo(-a,-a);rc.lineTo(a,a);rc.moveTo(a,-a);rc.lineTo(-a,a);rc.stroke();
+  // center plate
+  rc.lineWidth=1.2;rc.beginPath();
+  rc.rect(-sz*0.2,-sz*0.2,sz*0.4,sz*0.4);rc.stroke();
+  // 4 rotor discs
+  const r=sz*0.35;
+  [[-a,-a],[a,-a],[a,a],[-a,a]].forEach(([px,py])=>{
+    rc.beginPath();rc.arc(px,py,r,0,Math.PI*2);rc.stroke();
+  });
+  // prop lines spinning
+  const pt=Date.now()*0.015;
+  [[-a,-a],[a,-a],[a,a],[-a,a]].forEach(([px,py])=>{
+    rc.beginPath();
+    rc.moveTo(px+Math.cos(pt)*r*0.8,py+Math.sin(pt)*r*0.8);
+    rc.lineTo(px+Math.cos(pt+Math.PI)*r*0.8,py+Math.sin(pt+Math.PI)*r*0.8);
+    rc.stroke();
+  });
+  rc.shadowBlur=0;rc.restore();
+}
+
+// Runway (kick) — ground structure at outer ring
+function drRunway(x,y,ang,al){
+  rc.save();rc.translate(x,y);rc.rotate(ang);rc.globalAlpha=al;
+  rc.strokeStyle=C.red;rc.lineWidth=1.5;
+  // runway strip
+  rc.beginPath();rc.moveTo(-10,0);rc.lineTo(10,0);rc.stroke();
+  // center line dashes
+  rc.lineWidth=0.7;rc.setLineDash([2,2]);
+  rc.beginPath();rc.moveTo(-8,0);rc.lineTo(8,0);rc.stroke();
+  rc.setLineDash([]);
+  // threshold marks
+  rc.lineWidth=1.2;
+  rc.beginPath();
+  rc.moveTo(-10,-2.5);rc.lineTo(-10,2.5);
+  rc.moveTo(10,-2.5);rc.lineTo(10,2.5);
+  rc.stroke();
+  // approach lights
+  rc.fillStyle=C.red;
+  rc.beginPath();rc.arc(-12,0,1,0,Math.PI*2);rc.fill();
+  rc.beginPath();rc.arc(12,0,1,0,Math.PI*2);rc.fill();
+  rc.shadowBlur=0;rc.restore();
+}
+
+// Radar dish (hi-hat) — spinning dish at outer ring
+function drDish(x,y,al){
+  rc.save();rc.translate(x,y);rc.globalAlpha=al;
+  rc.strokeStyle=C.g1;rc.lineWidth=1.2;
+  // base tripod
+  rc.beginPath();
+  rc.moveTo(-4,4);rc.lineTo(0,1);rc.lineTo(4,4);
+  rc.stroke();
+  // mast
+  rc.lineWidth=1.4;
+  rc.beginPath();rc.moveTo(0,1);rc.lineTo(0,-3);rc.stroke();
+  // dish arc — rotates
+  const t=Date.now()*0.005;
+  rc.lineWidth=1.6;
+  rc.beginPath();
+  rc.arc(0,-3,5,t+Math.PI*0.7,t+Math.PI*1.3);
+  rc.stroke();
+  // signal pulse
+  rc.globalAlpha=al*0.3;
+  rc.lineWidth=0.8;
+  const pt=Date.now()*0.002;
+  const pr=3+((pt%1)*8);
+  rc.beginPath();
+  rc.arc(0,-3,pr,t+Math.PI*0.85,t+Math.PI*1.15);
+  rc.stroke();
+  rc.shadowBlur=0;rc.restore();
+}
+
+// Radio tower (clap) — yellow lattice tower with pulsing signal rings
+function drTower(x,y,al){
+  rc.save();rc.translate(x,y);rc.globalAlpha=al;
+  rc.strokeStyle=C.amber;rc.lineWidth=1.2;
+  // Tower legs — triangular lattice
+  rc.beginPath();
+  rc.moveTo(-4,6);rc.lineTo(0,-6);rc.lineTo(4,6);
+  rc.stroke();
+  // Cross braces
+  rc.lineWidth=0.7;
+  rc.beginPath();
+  rc.moveTo(-2.5,2);rc.lineTo(2.5,2);
+  rc.moveTo(-1.5,-1);rc.lineTo(1.5,-1);
+  rc.stroke();
+  // Antenna tip
+  rc.lineWidth=1.4;
+  rc.beginPath();rc.moveTo(0,-6);rc.lineTo(0,-9);rc.stroke();
+  // Tip dot
+  rc.fillStyle=C.amber;
+  rc.beginPath();rc.arc(0,-9,1.2,0,Math.PI*2);rc.fill();
+  // Broadcast rings — pulsing outward
+  const t=Date.now()*0.003;
+  for(let r=0;r<3;r++){
+    const phase=(t+r*0.33)%1;
+    const ringR=2+phase*8;
+    rc.globalAlpha=al*(1-phase)*0.4;
+    rc.lineWidth=0.8;
+    rc.beginPath();
+    rc.arc(0,-9,ringR,-Math.PI*0.8,-Math.PI*0.2);
+    rc.stroke();
+    rc.beginPath();
+    rc.arc(0,-9,ringR,Math.PI*0.2,Math.PI*0.8);
+    rc.stroke();
+  }
+  rc.shadowBlur=0;rc.restore();
+}
+
+let _cvW=0,_cvH=0;
+function drawRadar(){
+  const dpr=window.devicePixelRatio||1;
+  const wrap=cv.parentElement;
+  const w=wrap.clientWidth,h=wrap.clientHeight;
+  if(w!==_cvW||h!==_cvH){cv.width=w*dpr;cv.height=h*dpr;_cvW=w;_cvH=h;}
+  rc.setTransform(dpr,0,0,dpr,0,0);
+
+  const cx=w/2,cy=h/2;
+  const rad=Math.min(cx,cy)-10;
+
+  rc.clearRect(0,0,w,h);
+
+  // Grid rings
+  rc.strokeStyle=C.g3;rc.lineWidth=0.8;
+  for(let r=1;r<=4;r++){rc.beginPath();rc.arc(cx,cy,rad*r/4,0,Math.PI*2);rc.stroke();}
+  // Cross
+  rc.strokeStyle=C.g4;rc.lineWidth=0.8;
+  rc.beginPath();rc.moveTo(cx-rad,cy);rc.lineTo(cx+rad,cy);rc.moveTo(cx,cy-rad);rc.lineTo(cx,cy+rad);rc.stroke();
+  // Diagonals
+  rc.strokeStyle='#112a16';rc.beginPath();const d=rad*0.707;rc.moveTo(cx-d,cy-d);rc.lineTo(cx+d,cy+d);rc.moveTo(cx+d,cy-d);rc.lineTo(cx-d,cy+d);rc.stroke();
+
+  const now_t=performance.now();
+  const dt=(now_t-lastFrame)/1000;lastFrame=now_t;
+  // Drift: slow constant rotation of the aircraft field
+  driftA+=dt*0.06;
+  if(driftA>Math.PI*2)driftA-=Math.PI*2;
+
+  // Sweep line — driven by WebAudio clock for sample-accurate sync
+  {
+    let sweepAng;
+    if(playing&&ax){
+      const stepDur=60/bpm/4; // seconds per 16th note
+      const barDur=stepDur*NS;
+      // Position within current bar from audio clock
+      const elapsed=ax.currentTime-nextStepTime+(nextStepIdx%NS)*stepDur;
+      const barPos=((elapsed%barDur)+barDur)%barDur; // 0..barDur
+      sweepAng=-Math.PI/2+(barPos/barDur)*Math.PI*2;
+    }else{
+      // Idle: slow constant spin using wall clock
+      sweepAng=-Math.PI/2+(((now_t*0.0004)%1)*Math.PI*2);
+    }
+    // Fading trail
+    for(let a=0;a<24;a++){
+      const ang=sweepAng-(a/24)*0.55;
+      const al=(1-a/24)*0.07;
+      rc.strokeStyle=`rgba(102,221,119,${al})`;
+      rc.lineWidth=1.5;rc.beginPath();rc.moveTo(cx,cy);rc.lineTo(cx+Math.cos(ang)*rad,cy+Math.sin(ang)*rad);rc.stroke();
+    }
+    // Leading edge
+    rc.strokeStyle='rgba(102,221,119,0.5)';rc.lineWidth=1.2;
+    rc.beginPath();rc.moveTo(cx,cy);rc.lineTo(cx+Math.cos(sweepAng)*rad,cy+Math.sin(sweepAng)*rad);rc.stroke();
+  }
+
+  // Delay TIME pings — expanding blue radar rings
+  {
+    delayPings.forEach(p=>{
+      if(p.delay>0){p.delay-=dt*1000;return;}
+      p.r+=dt*rad*0.28; // slow expansion
+      p.alpha=Math.max(0,p.alpha-dt*0.22);
+    });
+    delayPings=delayPings.filter(p=>p.alpha>0.01||p.delay>0);
+    delayPings.forEach(p=>{
+      if(p.delay>0)return;
+      rc.save();
+      rc.strokeStyle=`rgba(102,187,221,${p.alpha})`;
+      rc.lineWidth=1;
+      rc.beginPath();rc.arc(cx,cy,Math.min(p.r,rad),0,Math.PI*2);rc.stroke();
+      rc.restore();
+    });
+  }
+
+  // Turbulence glitch effect when > 80%
+  const turbPct=rSp/100;
+  if(turbPct>0.8){
+    const glitchIntensity=(turbPct-0.8)*5; // 0 to 1
+    const now_ms=Date.now();
+    // Random horizontal slice displacement
+    if(Math.random()<glitchIntensity*0.4){
+      const sliceY=Math.random()*h;
+      const sliceH=2+Math.random()*8;
+      const shift=(Math.random()-0.5)*glitchIntensity*12;
+      const imgData=rc.getImageData(0,sliceY*dpr,w*dpr,sliceH*dpr);
+      rc.putImageData(imgData,shift*dpr,sliceY*dpr);
+    }
+    // Random noise speckles
+    rc.fillStyle=C.g1;
+    for(let n=0;n<Math.floor(glitchIntensity*15);n++){
+      rc.globalAlpha=Math.random()*0.15;
+      const nx=Math.random()*w,ny=Math.random()*h;
+      rc.fillRect(nx,ny,Math.random()*3+1,1);
+    }
+    rc.globalAlpha=1;
+    // Occasional full-width scanline flash
+    if(Math.random()<glitchIntensity*0.08){
+      rc.fillStyle=C.g1;rc.globalAlpha=0.06;
+      const sy_=Math.random()*h;
+      rc.fillRect(0,sy_,w,2);
+      rc.globalAlpha=1;
+    }
+  }
+
+  // Blips
+  for(let i=0;i<NS;i++){
+    const s=st[i];
+    if(!s.g){blips[i].fa=Math.max(0,blips[i].fa-0.012);if(blips[i].fa<0.01){blips[i].trail=[];continue;}}
+    const pos=bPos(i,cx,cy,rad);
+    if(i===cs&&playing){
+      blips[i].fa=1;
+      if(s.gl){blips[i].trail.push({x:pos.x,y:pos.y,t:1});if(blips[i].trail.length>14)blips[i].trail.shift();}
+    }else{
+      blips[i].fa=Math.max(s.g?0.35:0,blips[i].fa-0.005);
+    }
+    const al=blips[i].fa;if(al<0.02)continue;
+    const sz=7+(s.ac?5:0);
+    const hd=pos.ang+Math.PI/2;
+
+    // Trail
+    if(s.gl&&blips[i].trail.length>1){
+      const tc_=s.w===0?C.g1:s.w===1?C.red:s.w===2?C.blue:C.amber;
+      for(let t=1;t<blips[i].trail.length;t++){const p=blips[i].trail[t],pp=blips[i].trail[t-1];rc.strokeStyle=tc_;rc.globalAlpha=(t/blips[i].trail.length)*0.4*al;rc.lineWidth=1.5;rc.beginPath();rc.moveTo(pp.x,pp.y);rc.lineTo(p.x,p.y);rc.stroke();}
+      rc.globalAlpha=1;
+    }
+    blips[i].trail=blips[i].trail.filter(t=>{t.t-=0.02;return t.t>0;});
+
+    // Aircraft
+    if(s.w===0)drAirliner(pos.x,pos.y,hd,sz,al);
+    else if(s.w===1)drFighter(pos.x,pos.y,hd,sz,al);
+    else if(s.w===2)drHeli(pos.x,pos.y,hd,sz,al);
+    else drDrone(pos.x,pos.y,hd,sz,al);
+
+    // Label on active
+    if(i===cs&&playing&&s.g){
+      rc.save();rc.globalAlpha=al*0.9;
+      rc.fillStyle=s.w===0?C.g1:s.w===1?C.red:s.w===2?C.blue:C.amber;
+      rc.font='10px Share Tech Mono';
+      rc.fillText(mn(s.n),pos.x+sz+5,pos.y);
+      rc.fillText(WL[s.w]+(s.ac?' !':''),pos.x+sz+5,pos.y+11);
+      rc.restore();
+    }
+  }
+
+  // Center
+  rc.shadowBlur=0;rc.fillStyle=C.g2;rc.globalAlpha=1;rc.beginPath();rc.arc(cx,cy,2.5,0,Math.PI*2);rc.fill();
+
+  // Draw ground structures — runways (kick), dishes (hi-hat), towers (clap) on outer ring
+  for(let i=0;i<NS;i++){
+    const ang=(i/NS)*Math.PI*2-Math.PI/2+driftA;
+    const outerR=rad+16;
+    const sx=cx+Math.cos(ang)*outerR;
+    const sy=cy+Math.sin(ang)*outerR;
+    if(kick[i]){
+      const al=i===cs&&playing?1:0.4;
+      drRunway(sx,sy,ang+Math.PI/2,al);
+    }
+    if(hh[i]){
+      const al=i===cs&&playing?1:0.35;
+      drDish(sx,sy,al);
+    }
+    if(clap[i]){
+      const al=i===cs&&playing?1:0.4;
+      drTower(sx,sy,al);
+    }
+  }
+
+  // Outer step markers (rotate with drift)
+  for(let i=0;i<NS;i++){const ang=(i/NS)*Math.PI*2-Math.PI/2+driftA;const mx=cx+Math.cos(ang)*(rad+7);const my=cy+Math.sin(ang)*(rad+7);rc.fillStyle=i===cs?C.g1:C.g3;rc.beginPath();rc.arc(mx,my,i===cs?3:1.8,0,Math.PI*2);rc.fill();}
+
+  // PIP overlay
+  drawPIP(cx,cy,rad,w,h);
+
+  // Waveform PIP — shows when wave is changed
+  drawWavePIP(cx,cy,rad,w,h);
+
+  // Turbulence warning indicator — top right of scope, inset from edge
+  if(rSp>80){
+    const wx=w-24,wy=18;
+    const blink=Math.floor(Date.now()/400)%2===0;
+    if(blink){
+      rc.save();
+      // Warning triangle
+      rc.strokeStyle=C.red;rc.fillStyle='rgba(221,85,85,0.12)';
+      rc.lineWidth=1.5;rc.globalAlpha=1;
+      rc.beginPath();
+      rc.moveTo(wx-10,wy+10);rc.lineTo(wx,wy-2);rc.lineTo(wx+10,wy+10);rc.closePath();
+      rc.fill();rc.stroke();
+      // Exclamation mark
+      rc.fillStyle=C.red;
+      rc.font='bold 9px Share Tech Mono';
+      rc.textAlign='center';
+      rc.fillText('!',wx,wy+8);
+      // Label below
+      rc.font='7px Share Tech Mono';
+      rc.fillStyle=C.red;rc.globalAlpha=0.9;
+      rc.fillText('TURBULENCE',wx,wy+20);
+      rc.textAlign='left';
+      rc.restore();
+    }
+  }
+
+  // Chaos fill WARNING PIP — on top of everything
+  drawChaosPIP(w,h);
+
+  requestAnimationFrame(drawRadar);
+}
+
+// Aspect ratio control
+const AR_MAP={
+  '16:9':  {mw:'177.78vh', mh:'56.25vw',  portrait:false},
+  '16:10': {mw:'160vh',    mh:'62.5vw',   portrait:false},
+  '4:3':   {mw:'133.33vh', mh:'75vw',     portrait:false},
+  '9:19.5':{mw:'46.15vh',  mh:'216.67vw', portrait:true}
+};
+function setAR(v){
+  const ar=AR_MAP[v]||AR_MAP['16:9'];
+  const sh=document.getElementById('shell');
+  sh.style.setProperty('--ar-mw',ar.mw);
+  sh.style.setProperty('--ar-mh',ar.mh);
+  const main=document.querySelector('.main');
+  if(ar.portrait){
+    main.style.flexDirection='column';
+    document.querySelector('.left').style.flex='0 0 auto';
+    document.querySelector('.right').style.flex='1';
+    document.querySelector('.right').style.minHeight='40%';
+  }else{
+    main.style.flexDirection='row';
+    document.querySelector('.left').style.flex='0 0 58%';
+    document.querySelector('.right').style.flex='1';
+    document.querySelector('.right').style.minHeight='0';
+  }
+}
+function setARBtn(el){
+  document.querySelectorAll('[data-a]').forEach(e=>e.classList.remove('sel'));
+  el.classList.add('sel');
+  setAR(el.dataset.a);
+}
+
+// Options panel toggle
+function toggleOpts(){document.getElementById('optsPanel').classList.toggle('open');}
+
+// Theme system
+const THEMES={
+  phosphor:{g1:'#66dd77',g2:'#44aa55',g3:'#256633',g4:'#14391c',bg:'#060e08',panel:'#0a140b',red:'#dd5555','red-d':'#5a2020',blue:'#66bbdd','blue-d':'#1f3d50',amber:'#ddbb55','amber-d':'#5a4515',violet:'#bb77dd','violet-d':'#442255'},
+  amber:{g1:'#ddaa44',g2:'#aa7722',g3:'#664411',g4:'#332208',bg:'#0c0800',panel:'#120e04',red:'#dd5544','red-d':'#5a2218',blue:'#ddcc66','blue-d':'#55441a',amber:'#eebb44','amber-d':'#665520',violet:'#dd8866','violet-d':'#553322'},
+  ice:{g1:'#66ccee',g2:'#4499aa',g3:'#1a4455',g4:'#0e2a33',bg:'#040a0e',panel:'#081014',red:'#ee6677','red-d':'#552233',blue:'#88ddff','blue-d':'#224466',amber:'#aaddcc','amber-d':'#335544',violet:'#99aaee','violet-d':'#334466'},
+  crimson:{g1:'#ee5566',g2:'#aa3344',g3:'#551a22',g4:'#330e14',bg:'#0e0406',panel:'#14080a',red:'#ff6666','red-d':'#662222',blue:'#ee8899','blue-d':'#553344',amber:'#eeaa66','amber-d':'#664422',violet:'#dd77aa','violet-d':'#553344'},
+  violet:{g1:'#bb88ee',g2:'#8855aa',g3:'#442266',g4:'#22113a',bg:'#08040e',panel:'#0e0814',red:'#ee6688','red-d':'#552244',blue:'#9999ee','blue-d':'#333366',amber:'#ddaa88','amber-d':'#554433',violet:'#cc99ff','violet-d':'#553388'},
+  white:{g1:'#ccddcc',g2:'#889988',g3:'#556655',g4:'#334433',bg:'#0a0e0a',panel:'#101410',red:'#dd8888','red-d':'#554444',blue:'#aabbcc','blue-d':'#445566',amber:'#ccbb99','amber-d':'#555044',violet:'#bbaacc','violet-d':'#444455'}
+};
+let curTheme='phosphor';
+function setTheme(el){
+  document.querySelectorAll('[data-t]').forEach(e=>e.classList.remove('sel'));
+  el.classList.add('sel');
+  curTheme=el.dataset.t;
+  const t=THEMES[curTheme];
+  const r=document.documentElement.style;
+  r.setProperty('--g1',t.g1);r.setProperty('--g2',t.g2);r.setProperty('--g3',t.g3);r.setProperty('--g4',t.g4);
+  r.setProperty('--bg',t.bg);r.setProperty('--panel',t.panel);
+  r.setProperty('--red',t.red);r.setProperty('--red-d',t['red-d']);
+  r.setProperty('--blue',t.blue);r.setProperty('--blue-d',t['blue-d']);
+  r.setProperty('--amber',t.amber);r.setProperty('--amber-d',t['amber-d']);
+  r.setProperty('--violet',t.violet);r.setProperty('--violet-d',t['violet-d']);
+  // Update canvas colors
+  C.g1=t.g1;C.g2=t.g2;C.g3=t.g3;C.g4=t.g4;
+  C.red=t.red;C.blue=t.blue;C.amber=t.amber;
+}
+
+function triggerDelayPing(){
+  delayPings=[];
+  delayPings.push({r:0,alpha:0.8,delay:0});
+  delayPings.push({r:0,alpha:0.6,delay:200});
+  delayPings.push({r:0,alpha:0.4,delay:400});
+}
+
+function closeWelcome(){
+  const ov=document.getElementById('welcomeOverlay');
+  ov.style.opacity='0';
+  setTimeout(()=>ov.style.display='none',400);
+}
+
+build();uHud();uWarn();lastFrame=performance.now();requestAnimationFrame(drawRadar);
+
+// PIP click handler — detect which aircraft was clicked
+cv.addEventListener('click',function(e){
+  const rect=cv.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  const mx=(e.clientX-rect.left), my=(e.clientY-rect.top);
+  const wrap=cv.parentElement;
+  const w=wrap.clientWidth,h=wrap.clientHeight;
+  const cx=w/2,cy=h/2;
+  const rad=Math.min(cx,cy)-10;
+  let closest=-1,closeDist=30; // 30px hit radius
+  for(let i=0;i<NS;i++){
+    if(!st[i].g)continue;
+    const pos=bPos(i,cx,cy,rad);
+    const dx=pos.x-mx,dy=pos.y-my;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<closeDist){closeDist=dist;closest=i;}
+  }
+  pipIdx=closest===pipIdx?-1:closest; // toggle off if same
+});
+
+function drawPIP(cx,cy,rad,w,h){
+  if(pipIdx<0||pipIdx>=NS)return;
+  const s=st[pipIdx];
+  const pos=bPos(pipIdx,cx,cy,rad);
+  const sz=7+(s.ac?5:0);
+  const col=s.w===0?C.g1:s.w===1?C.red:s.w===2?C.blue:C.amber;
+  const typeNames=['AIRLINER','FIGHTER','HELI','DRONE'];
+  const t=Date.now()*0.003;
+  const pipCol=getFiltCol(); // PIP accent color from filter type
+
+  // Animated target box around aircraft
+  const isGated=s.g;
+  const bracketAlpha=isGated?(0.7+0.3*Math.sin(t*2)):0.3;
+  rc.save();
+  rc.strokeStyle=pipCol;rc.lineWidth=1.2;rc.globalAlpha=bracketAlpha;
+  const bSz=sz+8;
+  const cL=6;
+  rc.beginPath();
+  rc.moveTo(pos.x-bSz,pos.y-bSz+cL);rc.lineTo(pos.x-bSz,pos.y-bSz);rc.lineTo(pos.x-bSz+cL,pos.y-bSz);
+  rc.moveTo(pos.x+bSz-cL,pos.y-bSz);rc.lineTo(pos.x+bSz,pos.y-bSz);rc.lineTo(pos.x+bSz,pos.y-bSz+cL);
+  rc.moveTo(pos.x+bSz,pos.y+bSz-cL);rc.lineTo(pos.x+bSz,pos.y+bSz);rc.lineTo(pos.x+bSz-cL,pos.y+bSz);
+  rc.moveTo(pos.x-bSz+cL,pos.y+bSz);rc.lineTo(pos.x-bSz,pos.y+bSz);rc.lineTo(pos.x-bSz,pos.y+bSz-cL);
+  rc.stroke();
+  rc.restore();
+
+  // PIP box position
+  const pipW=140,pipH=100;
+  const pipX=w-pipW-8;
+  const pipY=h-pipH-8;
+
+  // Animated connecting line
+  rc.save();
+  rc.strokeStyle=pipCol;rc.lineWidth=1;
+  rc.globalAlpha=(isGated?0.5:0.2)+0.2*Math.sin(t*3);
+  rc.setLineDash([4,4]);
+  rc.lineDashOffset=-Date.now()*0.02;
+  rc.beginPath();
+  rc.moveTo(pos.x,pos.y);
+  const midX=pipX,midY=pos.y;
+  rc.lineTo(midX,midY);
+  rc.lineTo(pipX,pipY+pipH/2);
+  rc.stroke();
+  rc.setLineDash([]);
+  rc.restore();
+
+  // PIP background
+  rc.save();
+  rc.fillStyle='rgba(6,14,8,0.92)';
+  rc.fillRect(pipX,pipY,pipW,pipH);
+  rc.strokeStyle=pipCol;rc.lineWidth=1;rc.globalAlpha=0.8;
+  rc.strokeRect(pipX,pipY,pipW,pipH);
+
+  // Thin colored top accent line
+  rc.fillStyle=pipCol;rc.globalAlpha=0.5;
+  rc.fillRect(pipX+1,pipY+1,pipW-2,2);
+
+  // PIP header bar
+  // Tinted header based on filter color
+  rc.globalAlpha=0.15;rc.fillStyle=pipCol;
+  rc.fillRect(pipX,pipY,pipW,14);
+  rc.fillStyle=pipCol;rc.globalAlpha=1;
+  rc.font='9px Share Tech Mono';
+  const statusTag=s.g?'':'[MUTED] ';
+  rc.fillText(statusTag+'STEP '+String(pipIdx+1).padStart(2,'0')+' '+typeNames[s.w],pipX+4,pipY+10);
+
+  // Filter badge — right side of header
+  rc.fillStyle=pipCol;
+  rc.fillText(FILT_NAMES[fType],pipX+pipW-28,pipY+10);
+
+  // PIP content
+  const lx=pipX+6;let ly=pipY+26;
+  rc.font='8px Share Tech Mono';
+
+  rc.fillStyle=C.g1;
+  rc.fillText('NOTE  '+mn(s.n),lx,ly);ly+=11;
+
+  rc.fillStyle=col;
+  rc.fillText('WAVE  '+WL[s.w],lx,ly);
+  // Filter type label on right
+  rc.fillStyle=pipCol;
+  rc.fillText('FLT  '+FILT_NAMES[fType],lx+68,ly);
+  ly+=11;
+
+  // Gate/Glide/Accent
+  rc.fillStyle=s.g?C.g1:C.g3;
+  rc.fillText('GATE',lx,ly);
+  rc.fillStyle=s.gl?C.blue:'#1a3344';
+  rc.fillText('GLD',lx+38,ly);
+  rc.fillStyle=s.ac?C.red:'#4d1a1a';
+  rc.fillText('ACC',lx+70,ly);
+  ly+=11;
+
+  // Altitude bar
+  rc.fillStyle=C.g3;
+  rc.fillRect(lx,ly,pipW-16,4);
+  const pitchPct=(s.n-MM)/MT;
+  rc.fillStyle=col;
+  rc.fillRect(lx,ly,Math.round((pipW-16)*pitchPct),4);
+  rc.fillStyle=C.g2;rc.font='7px Share Tech Mono';
+  rc.fillText('ALT',lx+pipW-30,ly+4);
+  ly+=9;
+
+  // Filter bar (cutoff position)
+  rc.fillStyle=C.g3;
+  rc.fillRect(lx,ly,pipW-16,4);
+  rc.fillStyle=pipCol;
+  rc.fillRect(lx,ly,Math.round((pipW-16)*fCut/100),4);
+  rc.fillStyle=pipCol;rc.globalAlpha=0.6;rc.font='7px Share Tech Mono';
+  rc.fillText('CUT '+fCut+'%',lx+pipW-48,ly+4);
+
+  rc.restore();
+}
+
+// Waveform display PIP — persistent, hides when subject changes away from wave editing
+function drawWavePIP(cx,cy,rad,w,h){
+  // Fade in/out
+  if(wavePipShow&&pipIdx>=0&&pipIdx<NS){
+    wavePipFade=Math.min(1,wavePipFade+0.06);
+  }else{
+    wavePipFade=Math.max(0,wavePipFade-0.06);
+  }
+  if(wavePipFade<0.01)return;
+
+  const alpha=wavePipFade;
+  const s=st[pipIdx]||st[0];
+  const pos=bPos(pipIdx,cx,cy,rad);
+  const t=Date.now()*0.003;
+
+  // Wave PIP box — top-left corner of scope
+  const wpW=140,wpH=80;
+  const wpX=8,wpY=8;
+
+  rc.save();
+  rc.globalAlpha=alpha;
+
+  // Animated yellow dashed line from PIP to aircraft on scope
+  rc.strokeStyle=C.amber;rc.lineWidth=1;
+  rc.globalAlpha=alpha*(0.5+0.2*Math.sin(t*3));
+  rc.setLineDash([3,3]);
+  rc.lineDashOffset=-Date.now()*0.02;
+  rc.beginPath();
+  rc.moveTo(wpX+wpW,wpY+wpH/2);
+  rc.lineTo(pos.x,pos.y);
+  rc.stroke();
+  rc.setLineDash([]);
+
+  rc.globalAlpha=alpha;
+
+  // Background
+  rc.fillStyle='rgba(6,14,8,0.93)';
+  rc.fillRect(wpX,wpY,wpW,wpH);
+  rc.strokeStyle=C.amber;rc.lineWidth=1;
+  rc.globalAlpha=alpha*0.8;
+  rc.strokeRect(wpX,wpY,wpW,wpH);
+
+  // Amber top accent
+  rc.fillStyle=C.amber;rc.globalAlpha=alpha*0.4;
+  rc.fillRect(wpX+1,wpY+1,wpW-2,2);
+
+  // Header
+  rc.globalAlpha=alpha*0.15;rc.fillStyle=C.amber;
+  rc.fillRect(wpX,wpY,wpW,13);
+  rc.globalAlpha=alpha;
+  rc.fillStyle=C.amber;rc.font='8px Share Tech Mono';
+  rc.fillText('WAVEFORM — STEP '+String(pipIdx+1).padStart(2,'0'),wpX+4,wpY+10);
+
+  // Draw 4 waveforms in a 2x2 grid
+  const cellW=62,cellH=26;
+  const waveNames=['SAW','SQR','TRI','SIN'];
+  const waveCols=[C.g1,C.red,C.blue,C.amber];
+
+  for(let wi=0;wi<4;wi++){
+    const col_=wi%2, row_=Math.floor(wi/2);
+    const ox=wpX+6+col_*(cellW+4);
+    const oy=wpY+16+row_*(cellH+2);
+    const isSelected=s.w===wi;
+
+    // Cell background
+    if(isSelected){
+      rc.fillStyle=waveCols[wi];rc.globalAlpha=alpha*0.1;
+      rc.fillRect(ox,oy,cellW,cellH);
+      rc.strokeStyle=waveCols[wi];rc.globalAlpha=alpha*0.8;rc.lineWidth=1;
+      rc.strokeRect(ox,oy,cellW,cellH);
+    }else{
+      rc.strokeStyle=C.g4;rc.globalAlpha=alpha*0.5;rc.lineWidth=0.5;
+      rc.strokeRect(ox,oy,cellW,cellH);
+    }
+
+    // Label
+    rc.globalAlpha=alpha*(isSelected?1:0.35);
+    rc.fillStyle=isSelected?waveCols[wi]:C.g3;
+    rc.font=(isSelected?'bold ':'')+' 7px Share Tech Mono';
+    rc.fillText(waveNames[wi],ox+2,oy+8);
+
+    // Draw waveform shape
+    rc.strokeStyle=isSelected?waveCols[wi]:C.g4;
+    rc.lineWidth=isSelected?1.5:0.8;
+    rc.globalAlpha=alpha*(isSelected?0.9:0.25);
+    rc.beginPath();
+    const wX=ox+18,wY=oy+cellH/2,wW=cellW-22,wH=cellH*0.6;
+    const steps_=32;
+    for(let p=0;p<=steps_;p++){
+      const px=wX+(p/steps_)*wW;
+      let py;
+      const phase=(p/steps_)*Math.PI*2;
+      // Animate selected waveform
+      const anim=isSelected?Date.now()*0.004:0;
+      const ph=phase+anim;
+      if(wi===0){// SAW
+        py=wY-((((ph)%(Math.PI*2))/(Math.PI*2))*2-1)*wH/2;
+      }else if(wi===1){// SQR
+        py=wY-(Math.sin(ph)>0?1:-1)*wH/2;
+      }else if(wi===2){// TRI
+        const tri=Math.asin(Math.sin(ph))*(2/Math.PI);
+        py=wY-tri*wH/2;
+      }else{// SIN
+        py=wY-Math.sin(ph)*wH/2;
+      }
+      if(p===0)rc.moveTo(px,py);else rc.lineTo(px,py);
+    }
+    rc.stroke();
+  }
+
+  rc.restore();
+}
+</script>
+</body>
+</html>
